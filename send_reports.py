@@ -35,13 +35,20 @@ def run_reports(mode="auto", target_athlete="all", dry_run=False, force=False):
     if not config:
         return
 
-    coach_api_key = config.get("coach_api_key", "")
-    coach_athlete_id = str(config.get("coach_athlete_id", "")).strip()
+    coach_api_key = config.get("coach_api_key", "") or os.environ.get("INTERVALS_API_KEY", "")
+    coach_athlete_id = str(config.get("coach_athlete_id", "")).strip() or os.environ.get("INTERVALS_ATHLETE_ID", "")
     smtp_config = config.get("smtp_config", {})
+    if not smtp_config.get("password") and os.environ.get("SMTP_PASSWORD"):
+        smtp_config["password"] = os.environ.get("SMTP_PASSWORD")
+    if not smtp_config.get("user") and os.environ.get("SMTP_USER"):
+        smtp_config["user"] = os.environ.get("SMTP_USER")
+    if not smtp_config.get("server") and os.environ.get("SMTP_SERVER"):
+        smtp_config["server"] = os.environ.get("SMTP_SERVER")
+
     athletes = config.get("athletes", [])
 
     if not coach_api_key:
-        log_event("ERROR: No hay 'coach_api_key' configurada en athletes.json")
+        log_event("ERROR: No hay 'coach_api_key' configurada en athletes.json ni en variables de entorno")
         return
 
     today = datetime.now()

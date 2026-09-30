@@ -1,0 +1,17 @@
+# Entornos y temporales
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Entorno virtual
+venv/
+.venv/
+env/
+
+# Variables de entorno locales
+.env
+
+# Archivos de caché del sistema
+.DS_Store
+Thumbs.db
