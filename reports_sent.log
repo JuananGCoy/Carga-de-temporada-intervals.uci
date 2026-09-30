@@ -1,0 +1,128 @@
+[2026-09-22 22:23:39] Iniciando proceso de informes [Modo: weekly | Dry-run: True | Atletas: 5]
+[2026-09-22 22:23:39] 
+--- Procesando: Juanan (ID: 308429) ---
+[2026-09-22 22:23:39] AVISO: Juanan no tiene email configurado en athletes.json. Se omite el envío.
+[2026-09-22 22:23:39] 
+--- Procesando: Manule (ID: 599534) ---
+[2026-09-22 22:23:39] AVISO: Manule no tiene email configurado en athletes.json. Se omite el envío.
+[2026-09-22 22:23:39] 
+--- Procesando: Ruiz (ID: 602664) ---
+[2026-09-22 22:23:39] AVISO: Ruiz no tiene email configurado en athletes.json. Se omite el envío.
+[2026-09-22 22:23:39] 
+--- Procesando: Mario (ID: 634043) ---
+[2026-09-22 22:23:39] AVISO: Mario no tiene email configurado en athletes.json. Se omite el envío.
+[2026-09-22 22:23:39] 
+--- Procesando: Alejandra (ID: 651658) ---
+[2026-09-22 22:23:39] AVISO: Alejandra no tiene email configurado en athletes.json. Se omite el envío.
+[2026-09-22 22:23:39] Proceso de informes finalizado.
+
+[2026-09-30 17:59:58] Iniciando proceso de informes [Modo: weekly | Dry-run: True | Atletas: 5]
+[2026-09-30 17:59:58] 
+--- Procesando: Juanan (ID: 308429) ---
+[2026-09-30 17:59:58] AVISO: Juanan no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 17:59:58] Generando informe semanal (2026-09-28 al 2026-09-30) para Juanan...
+[2026-09-30 17:59:59] [DRY-RUN] Email semanal generado con éxito (15090 bytes). Cumplimiento: 33.3% (2 hechos / 4 saltados). No enviado por --dry-run.
+[2026-09-30 17:59:59] 
+--- Procesando: Manule (ID: 599534) ---
+[2026-09-30 17:59:59] AVISO: Manule no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 17:59:59] Generando informe semanal (2026-09-28 al 2026-09-30) para Manule...
+[2026-09-30 18:00:01] [DRY-RUN] Email semanal generado con éxito (12101 bytes). Cumplimiento: 0.0% (0 hechos / 3 saltados). No enviado por --dry-run.
+[2026-09-30 18:00:01] 
+--- Procesando: Ruiz (ID: 602664) ---
+[2026-09-30 18:00:01] AVISO: Ruiz no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:00:01] Generando informe semanal (2026-09-28 al 2026-09-30) para Ruiz...
+[2026-09-30 18:00:02] [DRY-RUN] Email semanal generado con éxito (12098 bytes). Cumplimiento: 0.0% (0 hechos / 3 saltados). No enviado por --dry-run.
+[2026-09-30 18:00:02] 
+--- Procesando: Mario (ID: 634043) ---
+[2026-09-30 18:00:02] AVISO: Mario no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:00:02] Generando informe semanal (2026-09-28 al 2026-09-30) para Mario...
+[2026-09-30 18:00:03] [DRY-RUN] Email semanal generado con éxito (14160 bytes). Cumplimiento: 50.0% (1 hechos / 1 saltados). No enviado por --dry-run.
+[2026-09-30 18:00:03] 
+--- Procesando: Alejandra (ID: 651658) ---
+[2026-09-30 18:00:03] AVISO: Alejandra no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:00:03] Generando informe semanal (2026-09-28 al 2026-09-30) para Alejandra...
+[2026-09-30 18:00:04] [DRY-RUN] Email semanal generado con éxito (12832 bytes). Cumplimiento: 66.7% (2 hechos / 1 saltados). No enviado por --dry-run.
+[2026-09-30 18:00:04] Proceso de informes finalizado.
+
+[2026-09-30 18:01:44] Iniciando proceso de informes [Modo: monthly | Dry-run: True | Atletas: 5]
+[2026-09-30 18:01:44] 
+--- Procesando: Juanan (ID: 308429) ---
+[2026-09-30 18:01:44] AVISO: Juanan no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:01:44] Generando balance mensual (2026-09-01 al 2026-09-30) para Juanan...
+[2026-09-30 18:01:45] [DRY-RUN] Email mensual generado con éxito (52279 bytes). Volumen: 32.6h | TSS: 1779. No enviado por --dry-run.
+[2026-09-30 18:01:45] 
+--- Procesando: Manule (ID: 599534) ---
+[2026-09-30 18:01:45] AVISO: Manule no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:01:45] Generando balance mensual (2026-09-01 al 2026-09-30) para Manule...
+[2026-09-30 18:01:46] [DRY-RUN] Email mensual generado con éxito (36905 bytes). Volumen: 6.2h | TSS: 460. No enviado por --dry-run.
+[2026-09-30 18:01:46] 
+--- Procesando: Ruiz (ID: 602664) ---
+[2026-09-30 18:01:46] AVISO: Ruiz no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:01:46] Generando balance mensual (2026-09-01 al 2026-09-30) para Ruiz...
+[2026-09-30 18:01:47] [DRY-RUN] Email mensual generado con éxito (30067 bytes). Volumen: 0.0h | TSS: 0. No enviado por --dry-run.
+[2026-09-30 18:01:47] 
+--- Procesando: Mario (ID: 634043) ---
+[2026-09-30 18:01:47] AVISO: Mario no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:01:47] Generando balance mensual (2026-09-01 al 2026-09-30) para Mario...
+[2026-09-30 18:01:49] [DRY-RUN] Email mensual generado con éxito (47032 bytes). Volumen: 22.7h | TSS: 780. No enviado por --dry-run.
+[2026-09-30 18:01:49] 
+--- Procesando: Alejandra (ID: 651658) ---
+[2026-09-30 18:01:49] AVISO: Alejandra no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:01:49] Generando balance mensual (2026-09-01 al 2026-09-30) para Alejandra...
+[2026-09-30 18:01:50] [DRY-RUN] Email mensual generado con éxito (45219 bytes). Volumen: 34.4h | TSS: 1558. No enviado por --dry-run.
+[2026-09-30 18:01:50] Proceso de informes finalizado.
+
+[2026-09-30 18:50:17] Iniciando proceso de informes [Modo: weekly | Dry-run: True | Atletas: 5]
+[2026-09-30 18:50:17] 
+--- Procesando: Juanan (ID: 308429) ---
+[2026-09-30 18:50:17] Generando informe semanal (2026-09-28 al 2026-09-30) para Juanan...
+[2026-09-30 18:50:19] [DRY-RUN] Email semanal generado con éxito (25276 bytes). Cumplimiento: 33.3% (2 hechos / 4 saltados). No enviado por --dry-run.
+[2026-09-30 18:50:19] 
+--- Procesando: Manule (ID: 599534) ---
+[2026-09-30 18:50:19] AVISO: Manule no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:50:19] Generando informe semanal (2026-09-28 al 2026-09-30) para Manule...
+[2026-09-30 18:50:20] [DRY-RUN] Email semanal generado con éxito (16744 bytes). Cumplimiento: 0.0% (0 hechos / 3 saltados). No enviado por --dry-run.
+[2026-09-30 18:50:20] 
+--- Procesando: Ruiz (ID: 602664) ---
+[2026-09-30 18:50:20] AVISO: Ruiz no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:50:20] Generando informe semanal (2026-09-28 al 2026-09-30) para Ruiz...
+[2026-09-30 18:50:21] [DRY-RUN] Email semanal generado con éxito (16741 bytes). Cumplimiento: 0.0% (0 hechos / 3 saltados). No enviado por --dry-run.
+[2026-09-30 18:50:21] 
+--- Procesando: Mario (ID: 634043) ---
+[2026-09-30 18:50:21] AVISO: Mario no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:50:21] Generando informe semanal (2026-09-28 al 2026-09-30) para Mario...
+[2026-09-30 18:50:22] [DRY-RUN] Email semanal generado con éxito (24468 bytes). Cumplimiento: 50.0% (1 hechos / 1 saltados). No enviado por --dry-run.
+[2026-09-30 18:50:22] 
+--- Procesando: Alejandra (ID: 651658) ---
+[2026-09-30 18:50:22] AVISO: Alejandra no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:50:22] Generando informe semanal (2026-09-28 al 2026-09-30) para Alejandra...
+[2026-09-30 18:50:23] [DRY-RUN] Email semanal generado con éxito (22558 bytes). Cumplimiento: 66.7% (2 hechos / 1 saltados). No enviado por --dry-run.
+[2026-09-30 18:50:23] Proceso de informes finalizado.
+
+[2026-09-30 18:51:57] Iniciando proceso de informes [Modo: monthly | Dry-run: True | Atletas: 5]
+[2026-09-30 18:51:57] 
+--- Procesando: Juanan (ID: 308429) ---
+[2026-09-30 18:51:57] Generando balance mensual (2026-09-01 al 2026-09-30) para Juanan...
+[2026-09-30 18:51:58] [DRY-RUN] Email mensual generado con éxito (67425 bytes). Volumen: 32.6h | TSS: 1779. No enviado por --dry-run.
+[2026-09-30 18:51:58] 
+--- Procesando: Manule (ID: 599534) ---
+[2026-09-30 18:51:58] AVISO: Manule no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:51:58] Generando balance mensual (2026-09-01 al 2026-09-30) para Manule...
+[2026-09-30 18:51:59] [DRY-RUN] Email mensual generado con éxito (49059 bytes). Volumen: 6.2h | TSS: 460. No enviado por --dry-run.
+[2026-09-30 18:51:59] 
+--- Procesando: Ruiz (ID: 602664) ---
+[2026-09-30 18:51:59] AVISO: Ruiz no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:51:59] Generando balance mensual (2026-09-01 al 2026-09-30) para Ruiz...
+[2026-09-30 18:52:01] [DRY-RUN] Email mensual generado con éxito (36382 bytes). Volumen: 0.0h | TSS: 0. No enviado por --dry-run.
+[2026-09-30 18:52:01] 
+--- Procesando: Mario (ID: 634043) ---
+[2026-09-30 18:52:01] AVISO: Mario no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:52:01] Generando balance mensual (2026-09-01 al 2026-09-30) para Mario...
+[2026-09-30 18:52:02] [DRY-RUN] Email mensual generado con éxito (61704 bytes). Volumen: 22.7h | TSS: 780. No enviado por --dry-run.
+[2026-09-30 18:52:02] 
+--- Procesando: Alejandra (ID: 651658) ---
+[2026-09-30 18:52:02] AVISO: Alejandra no tiene email configurado (simulando generación por --dry-run).
+[2026-09-30 18:52:02] Generando balance mensual (2026-09-01 al 2026-09-30) para Alejandra...
+[2026-09-30 18:52:03] [DRY-RUN] Email mensual generado con éxito (59890 bytes). Volumen: 34.4h | TSS: 1558. No enviado por --dry-run.
+[2026-09-30 18:52:03] Proceso de informes finalizado.
+

@@ -1,0 +1,39 @@
+{
+  "coach_api_key": "8yeez3v4p8i11ld1pdnvx3ur",
+  "coach_athlete_id": "308429",
+  "athletes": [
+    {
+      "name": "Juanan",
+      "athlete_id": "308429",
+      "email": "juantoba1995@gmail.com"
+    },
+    {
+      "name": "Manule",
+      "athlete_id": "599534",
+      "email": ""
+    },
+    {
+      "name": "Ruiz",
+      "athlete_id": "602664",
+      "email": ""
+    },
+    {
+      "name": "Mario",
+      "athlete_id": "634043",
+      "email": ""
+    },
+    {
+      "name": "Alejandra",
+      "athlete_id": "651658",
+      "email": ""
+    }
+  ],
+  "smtp_config": {
+    "server": "smtp.gmail.com",
+    "port": 587,
+    "user": "juantoba1995@gmail.com",
+    "password": "uxzh qlzn ldyg rxaz",
+    "coach_name": "Juanan Coy - Entrenador",
+    "bcc_coach": true
+  }
+}
