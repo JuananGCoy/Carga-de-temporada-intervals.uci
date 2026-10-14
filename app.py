@@ -61,76 +61,145 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Helper functions para gestión de deportistas (Formato Entrenador)
-ATHLETES_FILE = "athletes.json"
+import auth_manager
 
-def load_config():
-    default_config = {"coach_api_key": "", "coach_athlete_id": "", "athletes": []}
-    if os.path.exists(ATHLETES_FILE):
-        try:
-            with open(ATHLETES_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    if "coach_api_key" not in data:
-                        data["coach_api_key"] = ""
-                    if "coach_athlete_id" not in data:
-                        data["coach_athlete_id"] = ""
-                    if "athletes" not in data or not isinstance(data["athletes"], list):
-                        data["athletes"] = []
-                    return data
-                elif isinstance(data, list):
-                    # Migrar del formato antiguo de lista
-                    return {
-                        "coach_api_key": os.environ.get("INTERVALS_API_KEY", ""),
-                        "coach_athlete_id": os.environ.get("INTERVALS_ATHLETE_ID", ""),
-                        "athletes": data
-                    }
-        except Exception as e:
-            st.error(f"Error cargando archivo de configuración: {e}")
-    return default_config
+# --- GESTIÓN DE SESIÓN Y AUTENTICACIÓN MULTI-ENTRENADOR ---
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "username" not in st.session_state:
+    st.session_state["username"] = None
 
-def save_config(config_data):
-    try:
-        with open(ATHLETES_FILE, 'w', encoding='utf-8') as f:
-            json.dump(config_data, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        st.error(f"Error guardando configuración: {e}")
+def render_login_page():
+    st.markdown('<h1 class="main-title" style="text-align: center;">Triathlon Intervals.icu Suite 🏊‍♂️🚴‍♂️🏃‍♂️</h1>', unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #64748b; font-size: 1.15rem; margin-bottom: 2rem;'>Plataforma profesional para entrenadores y deportistas de triatlón, ciclismo y carrera</p>", unsafe_allow_html=True)
+
+    col_empty1, col_center, col_empty2 = st.columns([1, 2, 1])
+    with col_center:
+        tab_login, tab_register = st.tabs(["🔑 Iniciar Sesión", "📝 Registrar Nuevo Entrenador"])
+
+        with tab_login:
+            st.markdown("#### Acceso a tu Panel de Entrenador")
+            with st.form("login_form"):
+                login_user = st.text_input("Usuario", placeholder="ej. juanan").strip().lower()
+                login_pass = st.text_input("Contraseña", type="password", placeholder="••••••••")
+                submit_login = st.form_submit_button("🚀 Acceder a mi Panel", use_container_width=True)
+
+                if submit_login:
+                    if not login_user or not login_pass:
+                        st.error("Por favor, introduce tu usuario y contraseña.")
+                    else:
+                        user = auth_manager.authenticate(login_user, login_pass)
+                        if user:
+                            st.session_state["authenticated"] = True
+                            st.session_state["username"] = user["username"]
+                            st.session_state["current_user"] = user
+                            st.success(f"¡Bienvenido de nuevo, {user.get('display_name', login_user)}!")
+                            time.sleep(0.4)
+                            st.rerun()
+                        else:
+                            st.error("Usuario o contraseña incorrectos.")
+
+            st.info("💡 **Tu cuenta:** Ya está preconfigurada con tus deportistas actuales. Usuario: **`juanan`** | Contraseña: **`juanan123`** (puedes cambiarla una vez dentro).")
+
+        with tab_register:
+            st.markdown("#### Alta de Nuevo Entrenador")
+            st.caption("Crea tu espacio de trabajo privado. Tus deportistas y datos estarán 100% aislados de otros entrenadores.")
+            with st.form("register_form"):
+                reg_name = st.text_input("Nombre completo / Alias", placeholder="Ej. Carlos Gómez").strip()
+                reg_user = st.text_input("Nombre de usuario (minúsculas, sin espacios)", placeholder="Ej. carlos_coach").strip().lower()
+                reg_email = st.text_input("Email de contacto", placeholder="carlos@email.com").strip()
+                col_p1, col_p2 = st.columns(2)
+                reg_pass = col_p1.text_input("Contraseña", type="password")
+                reg_pass2 = col_p2.text_input("Confirmar contraseña", type="password")
+                
+                st.markdown("##### ⚡ Vinculación con Intervals.icu (Opcional ahora)")
+                reg_api_key = st.text_input("Tu Intervals.icu API Key (Entrenador)", type="password", placeholder="Opcional, puedes configurarlo dentro")
+                reg_ath_id = st.text_input("Tu Intervals.icu Athlete ID", placeholder="Ej. 123456 (Opcional)")
+
+                submit_reg = st.form_submit_button("✨ Crear Mi Cuenta de Entrenador", use_container_width=True)
+
+                if submit_reg:
+                    if not reg_user or not reg_pass:
+                        st.error("El usuario y la contraseña son obligatorios.")
+                    elif reg_pass != reg_pass2:
+                        st.error("Las contraseñas no coinciden.")
+                    else:
+                        ok, msg = auth_manager.register_user(
+                            username=reg_user,
+                            password=reg_pass,
+                            display_name=reg_name or reg_user.capitalize(),
+                            email=reg_email,
+                            coach_api_key=reg_api_key,
+                            coach_athlete_id=reg_ath_id
+                        )
+                        if ok:
+                            st.success("¡Cuenta creada correctamente! Pasa a la pestaña 'Iniciar Sesión' para acceder.")
+                        else:
+                            st.error(msg)
+
+if not st.session_state["authenticated"]:
+    render_login_page()
+    st.stop()
+
+# Si está autenticado, cargar su configuración aislada
+current_username = st.session_state["username"]
+current_user = auth_manager.get_user(current_username)
+if not current_user:
+    st.session_state["authenticated"] = False
+    st.rerun()
+
+config_data = current_user
+
+def save_config(new_config):
+    auth_manager.save_user_config(current_username, new_config)
 
 # Título de la app
 st.markdown('<h1 class="main-title">Triathlon Intervals.icu Suite 🏊‍♂️🚴‍♂️🏃‍♂️</h1>', unsafe_allow_html=True)
 
 # --- SIDEBAR: CONFIGURACIÓN Y DEPORTISTAS ---
 with st.sidebar:
-    st.markdown("## 👑 Configuración de Entrenador")
+    st.markdown(f"### 👑 Entrenador: **{config_data.get('display_name', current_username)}**")
+    st.caption(f"Sesión activa: `@{current_username}`")
+
+    col_out, col_chpwd = st.columns(2)
+    with col_out:
+        if st.button("🚪 Salir", use_container_width=True):
+            st.session_state["authenticated"] = False
+            st.session_state["username"] = None
+            st.session_state["current_user"] = None
+            st.rerun()
+
+    with st.expander("🔐 Cambiar Contraseña"):
+        with st.form("change_pwd_form"):
+            old_p = st.text_input("Contraseña actual", type="password")
+            new_p = st.text_input("Nueva contraseña", type="password")
+            btn_cp = st.form_submit_button("Actualizar")
+            if btn_cp:
+                ok, msg = auth_manager.change_password(current_username, old_p, new_p)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+
+    st.markdown("---")
+    st.markdown("## ⚙️ Claves de Intervals.icu")
     
-    config_data = load_config()
-    
-    # Migrar clave e ID iniciales de .env si están vacíos
-    if not config_data["coach_api_key"]:
-        config_data["coach_api_key"] = os.environ.get("INTERVALS_API_KEY", "")
-    if not config_data["coach_athlete_id"]:
-        config_data["coach_athlete_id"] = os.environ.get("INTERVALS_ATHLETE_ID", "")
-    
-    # Guardar si se migraron
-    if os.environ.get("INTERVALS_API_KEY") or os.environ.get("INTERVALS_ATHLETE_ID"):
-        save_config(config_data)
-            
     # Entrada para la clave global del entrenador
     coach_api_key_input = st.text_input(
         "Tu API Key de Entrenador (Global)",
         type="password",
-        value=config_data["coach_api_key"],
+        value=config_data.get("coach_api_key", ""),
         help="Clave API de Intervals.icu de tu propia cuenta de entrenador."
     )
     
     # Entrada para la ID del entrenador
     coach_athlete_id_input = st.text_input(
         "Tu Athlete ID de Entrenador",
-        value=config_data["coach_athlete_id"],
+        value=config_data.get("coach_athlete_id", ""),
         help="Tu ID personal de Intervals.icu (usado para detectar cuándo te estás subiendo entrenamientos a ti mismo)."
     )
     
-    if coach_api_key_input != config_data["coach_api_key"] or coach_athlete_id_input != config_data["coach_athlete_id"]:
+    if coach_api_key_input != config_data.get("coach_api_key", "") or coach_athlete_id_input != config_data.get("coach_athlete_id", ""):
         config_data["coach_api_key"] = coach_api_key_input
         config_data["coach_athlete_id"] = coach_athlete_id_input
         save_config(config_data)

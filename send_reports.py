@@ -19,36 +19,32 @@ def log_event(message):
     except Exception as e:
         print(f"Error escribiendo log: {e}")
 
-def load_config():
-    if not os.path.exists(ATHLETES_FILE):
-        log_event(f"ERROR: No se encontró {ATHLETES_FILE}")
-        return None
-    try:
-        with open(ATHLETES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        log_event(f"ERROR leyendo {ATHLETES_FILE}: {e}")
-        return None
+def load_coaches():
+    coaches = []
+    if os.path.exists("users.json"):
+        try:
+            with open("users.json", "r", encoding="utf-8") as f:
+                users_data = json.load(f)
+                for uname, udata in users_data.items():
+                    if udata.get("role") == "coach":
+                        coaches.append(udata)
+        except Exception as e:
+            log_event(f"Aviso leyendo users.json: {e}")
+
+    if not coaches and os.path.exists(ATHLETES_FILE):
+        try:
+            with open(ATHLETES_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                coaches.append(data)
+        except Exception as e:
+            log_event(f"ERROR leyendo {ATHLETES_FILE}: {e}")
+
+    return coaches
 
 def run_reports(mode="auto", target_athlete="all", dry_run=False, force=False):
-    config = load_config()
-    if not config:
-        return
-
-    coach_api_key = config.get("coach_api_key", "") or os.environ.get("INTERVALS_API_KEY", "")
-    coach_athlete_id = str(config.get("coach_athlete_id", "")).strip() or os.environ.get("INTERVALS_ATHLETE_ID", "")
-    smtp_config = config.get("smtp_config", {})
-    if not smtp_config.get("password") and os.environ.get("SMTP_PASSWORD"):
-        smtp_config["password"] = os.environ.get("SMTP_PASSWORD")
-    if not smtp_config.get("user") and os.environ.get("SMTP_USER"):
-        smtp_config["user"] = os.environ.get("SMTP_USER")
-    if not smtp_config.get("server") and os.environ.get("SMTP_SERVER"):
-        smtp_config["server"] = os.environ.get("SMTP_SERVER")
-
-    athletes = config.get("athletes", [])
-
-    if not coach_api_key:
-        log_event("ERROR: No hay 'coach_api_key' configurada en athletes.json ni en variables de entorno")
+    coaches = load_coaches()
+    if not coaches:
+        log_event("ERROR: No hay entrenadores configurados en users.json ni athletes.json")
         return
 
     today = datetime.now()
@@ -73,7 +69,6 @@ def run_reports(mode="auto", target_athlete="all", dry_run=False, force=False):
             return
 
     # Determinar fechas semanales (último lunes a hoy domingo)
-    # Si hoy es domingo, el lunes fue hace 6 días
     days_since_monday = today.weekday()
     week_start = (today - timedelta(days=days_since_monday)).strftime("%Y-%m-%d")
     week_end = today.strftime("%Y-%m-%d")
@@ -82,102 +77,123 @@ def run_reports(mode="auto", target_athlete="all", dry_run=False, force=False):
     month_start = today.replace(day=1).strftime("%Y-%m-%d")
     month_end = today.strftime("%Y-%m-%d")
 
-    log_event(f"Iniciando proceso de informes [Modo: {mode} | Dry-run: {dry_run} | Atletas: {len(athletes)}]")
+    log_event(f"Iniciando proceso de informes [Modo: {mode} | Dry-run: {dry_run} | Entrenadores: {len(coaches)}]")
 
-    for ath in athletes:
-        name = ath.get("name", "Deportista")
-        ath_id = str(ath.get("athlete_id", "")).strip()
-        email = str(ath.get("email", "")).strip()
-        is_coach = (ath_id == coach_athlete_id or ath_id == "0")
+    for coach in coaches:
+        coach_name = coach.get("display_name", coach.get("username", "Entrenador"))
+        coach_api_key = coach.get("coach_api_key", "") or os.environ.get("INTERVALS_API_KEY", "")
+        coach_athlete_id = str(coach.get("coach_athlete_id", "")).strip() or os.environ.get("INTERVALS_ATHLETE_ID", "")
+        smtp_config = coach.get("smtp_config", {})
+        if not smtp_config.get("password") and os.environ.get("SMTP_PASSWORD"):
+            smtp_config["password"] = os.environ.get("SMTP_PASSWORD")
+        if not smtp_config.get("user") and os.environ.get("SMTP_USER"):
+            smtp_config["user"] = os.environ.get("SMTP_USER")
+        if not smtp_config.get("server") and os.environ.get("SMTP_SERVER"):
+            smtp_config["server"] = os.environ.get("SMTP_SERVER")
 
-        if target_athlete != "all":
-            if target_athlete.lower() not in name.lower() and target_athlete != ath_id:
-                continue
+        athletes = coach.get("athletes", [])
+        if not coach_api_key:
+            log_event(f"AVISO: El entrenador '{coach_name}' no tiene 'coach_api_key' configurada. Se omiten sus deportistas.")
+            continue
 
-        log_event(f"\n--- Procesando: {name} (ID: {ath_id}) ---")
+        log_event(f"\n==================================================")
+        log_event(f" Entrenador: {coach_name} ({len(athletes)} deportistas)")
+        log_event(f"==================================================")
 
-        if not email or "@" not in email:
-            if not dry_run:
-                log_event(f"AVISO: {name} no tiene email configurado en athletes.json. Se omite el envío.")
-                continue
-            else:
-                log_event(f"AVISO: {name} no tiene email configurado (simulando generación por --dry-run).")
+        for ath in athletes:
+            name = ath.get("name", "Deportista")
+            ath_id = str(ath.get("athlete_id", "")).strip()
+            email = str(ath.get("email", "")).strip()
+            is_coach = (ath_id == coach_athlete_id or ath_id == "0")
 
-        # 1. Enviar Informe Semanal
-        if run_weekly:
-            log_event(f"Generando informe semanal ({week_start} al {week_end}) para {name}...")
-            match_data = report_generator.match_workouts_in_period(ath_id, coach_api_key, week_start, week_end, is_coach=is_coach)
-            wellness_data = report_generator.get_wellness_summary(ath_id, coach_api_key, week_start, week_end, is_coach=is_coach)
-            upcoming_races = report_generator.get_upcoming_races(ath_id, coach_api_key, is_coach=is_coach)
-            recs = report_generator.generate_report_recommendations(match_data, wellness_data, report_type="weekly", athlete_name=name)
+            if target_athlete != "all":
+                if target_athlete.lower() not in name.lower() and target_athlete != ath_id:
+                    continue
 
-            html = report_generator.build_report_html(
-                athlete_name=name,
-                report_type="weekly",
-                start_date=week_start,
-                end_date=week_end,
-                match_data=match_data,
-                wellness_data=wellness_data,
-                upcoming_races=upcoming_races,
-                recommendations=recs,
-                coach_name=smtp_config.get("coach_name", "Juanan Coy - Entrenador")
-            )
+            log_event(f"\n--- Procesando: {name} (ID: {ath_id}) ---")
 
-            subject = f"📊 Tu Resumen Semanal de Entrenamientos ({week_start} al {week_end}) - {name}"
-
-            if dry_run:
-                log_event(f"[DRY-RUN] Email semanal generado con éxito ({len(html)} bytes). Cumplimiento: {match_data['compliance_pct']}% ({match_data['completed_count']} hechos / {match_data['skipped_count']} saltados). No enviado por --dry-run.")
-            else:
-                bcc = smtp_config.get("user") if smtp_config.get("bcc_coach", True) else None
-                success, msg = email_service.send_email(
-                    to_email=email,
-                    subject=subject,
-                    html_content=html,
-                    smtp_config=smtp_config,
-                    bcc_email=bcc
-                )
-                if success:
-                    log_event(f"✅ Email semanal enviado con éxito a {email} (Cumplimiento: {match_data['compliance_pct']}%)")
+            if not email or "@" not in email:
+                if not dry_run:
+                    log_event(f"AVISO: {name} no tiene email configurado. Se omite el envío.")
+                    continue
                 else:
-                    log_event(f"❌ Error enviando email semanal a {email}: {msg}")
+                    log_event(f"AVISO: {name} no tiene email configurado (simulando generación por --dry-run).")
 
-        # 2. Enviar Informe Mensual
-        if run_monthly:
-            log_event(f"Generando balance mensual ({month_start} al {month_end}) para {name}...")
-            match_data_m = report_generator.match_workouts_in_period(ath_id, coach_api_key, month_start, month_end, is_coach=is_coach)
-            wellness_data_m = report_generator.get_wellness_summary(ath_id, coach_api_key, month_start, month_end, is_coach=is_coach)
-            upcoming_races_m = report_generator.get_upcoming_races(ath_id, coach_api_key, is_coach=is_coach)
-            recs_m = report_generator.generate_report_recommendations(match_data_m, wellness_data_m, report_type="monthly", athlete_name=name)
+            # 1. Enviar Informe Semanal
+            if run_weekly:
+                log_event(f"Generando informe semanal ({week_start} al {week_end}) para {name}...")
+                match_data = report_generator.match_workouts_in_period(ath_id, coach_api_key, week_start, week_end, is_coach=is_coach)
+                wellness_data = report_generator.get_wellness_summary(ath_id, coach_api_key, week_start, week_end, is_coach=is_coach)
+                upcoming_races = report_generator.get_upcoming_races(ath_id, coach_api_key, is_coach=is_coach)
+                recs = report_generator.generate_report_recommendations(match_data, wellness_data, report_type="weekly", athlete_name=name)
 
-            html_m = report_generator.build_report_html(
-                athlete_name=name,
-                report_type="monthly",
-                start_date=month_start,
-                end_date=month_end,
-                match_data=match_data_m,
-                wellness_data=wellness_data_m,
-                upcoming_races=upcoming_races_m,
-                recommendations=recs_m,
-                coach_name=smtp_config.get("coach_name", "Juanan Coy - Entrenador")
-            )
-
-            subject_m = f"🏆 Tu Balance Mensual de Entrenamiento ({today.strftime('%B %Y')}) - {name}"
-
-            if dry_run:
-                log_event(f"[DRY-RUN] Email mensual generado con éxito ({len(html_m)} bytes). Volumen: {match_data_m['total_hours']}h | TSS: {match_data_m['total_tss']}. No enviado por --dry-run.")
-            else:
-                bcc = smtp_config.get("user") if smtp_config.get("bcc_coach", True) else None
-                success, msg = email_service.send_email(
-                    to_email=email,
-                    subject=subject_m,
-                    html_content=html_m,
-                    smtp_config=smtp_config,
-                    bcc_email=bcc
+                html = report_generator.build_report_html(
+                    athlete_name=name,
+                    report_type="weekly",
+                    start_date=week_start,
+                    end_date=week_end,
+                    match_data=match_data,
+                    wellness_data=wellness_data,
+                    upcoming_races=upcoming_races,
+                    recommendations=recs,
+                    coach_name=smtp_config.get("coach_name", f"{coach_name} - Entrenador")
                 )
-                if success:
-                    log_event(f"✅ Email mensual enviado con éxito a {email}")
+
+                subject = f"📊 Tu Resumen Semanal de Entrenamientos ({week_start} al {week_end}) - {name}"
+
+                if dry_run:
+                    log_event(f"[DRY-RUN] Email semanal generado con éxito ({len(html)} bytes). Cumplimiento: {match_data['compliance_pct']}% ({match_data['completed_count']} hechos / {match_data['skipped_count']} saltados). No enviado por --dry-run.")
                 else:
-                    log_event(f"❌ Error enviando email mensual a {email}: {msg}")
+                    bcc = smtp_config.get("user") if smtp_config.get("bcc_coach", True) else None
+                    success, msg = email_service.send_email(
+                        to_email=email,
+                        subject=subject,
+                        html_content=html,
+                        smtp_config=smtp_config,
+                        bcc_email=bcc
+                    )
+                    if success:
+                        log_event(f"✅ Email semanal enviado con éxito a {email} (Cumplimiento: {match_data['compliance_pct']}%)")
+                    else:
+                        log_event(f"❌ Error enviando email semanal a {email}: {msg}")
+
+            # 2. Enviar Informe Mensual
+            if run_monthly:
+                log_event(f"Generando balance mensual ({month_start} al {month_end}) para {name}...")
+                match_data_m = report_generator.match_workouts_in_period(ath_id, coach_api_key, month_start, month_end, is_coach=is_coach)
+                wellness_data_m = report_generator.get_wellness_summary(ath_id, coach_api_key, month_start, month_end, is_coach=is_coach)
+                upcoming_races_m = report_generator.get_upcoming_races(ath_id, coach_api_key, is_coach=is_coach)
+                recs_m = report_generator.generate_report_recommendations(match_data_m, wellness_data_m, report_type="monthly", athlete_name=name)
+
+                html_m = report_generator.build_report_html(
+                    athlete_name=name,
+                    report_type="monthly",
+                    start_date=month_start,
+                    end_date=month_end,
+                    match_data=match_data_m,
+                    wellness_data=wellness_data_m,
+                    upcoming_races=upcoming_races_m,
+                    recommendations=recs_m,
+                    coach_name=smtp_config.get("coach_name", f"{coach_name} - Entrenador")
+                )
+
+                subject_m = f"🏆 Tu Balance Mensual de Entrenamiento ({today.strftime('%B %Y')}) - {name}"
+
+                if dry_run:
+                    log_event(f"[DRY-RUN] Email mensual generado con éxito ({len(html_m)} bytes). Volumen: {match_data_m['total_hours']}h | TSS: {match_data_m['total_tss']}. No enviado por --dry-run.")
+                else:
+                    bcc = smtp_config.get("user") if smtp_config.get("bcc_coach", True) else None
+                    success, msg = email_service.send_email(
+                        to_email=email,
+                        subject=subject_m,
+                        html_content=html_m,
+                        smtp_config=smtp_config,
+                        bcc_email=bcc
+                    )
+                    if success:
+                        log_event(f"✅ Email mensual enviado con éxito a {email}")
+                    else:
+                        log_event(f"❌ Error enviando email mensual a {email}: {msg}")
 
     log_event("Proceso de informes finalizado.\n")
 
