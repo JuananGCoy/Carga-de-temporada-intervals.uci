@@ -79,9 +79,28 @@ def render_login_page():
 
         with tab_login:
             st.markdown("#### Acceso a tu Panel de Entrenador")
+            users_db = auth_manager.load_users()
+            user_keys = list(users_db.keys())
+            
+            # Selector inteligente de cuenta: evita que el navegador se cierre por autofill de Chromium
+            account_options = user_keys + ["manual"]
+            default_index = user_keys.index("juanan") if "juanan" in user_keys else 0
+            
+            selected_account = st.selectbox(
+                "Selecciona tu perfil de Entrenador:",
+                options=account_options,
+                index=default_index,
+                format_func=lambda u: "✏️ Escribir otro usuario..." if u == "manual" else f"👤 {users_db[u].get('display_name', u)} (@{u})"
+            )
+            
             with st.form("login_form"):
-                login_user = st.text_input("Usuario", placeholder="ej. juanan").strip().lower()
-                login_pass = st.text_input("Contraseña", type="password", placeholder="••••••••")
+                if selected_account == "manual":
+                    login_user = st.text_input("Usuario", placeholder="ej. juanan", autocomplete="off").strip().lower()
+                else:
+                    login_user = selected_account
+                    st.caption(f"Iniciando sesión como: **{users_db[login_user].get('display_name', login_user)}** (`@{login_user}`)")
+                
+                login_pass = st.text_input("Contraseña", type="password", placeholder="••••••••", autocomplete="off")
                 submit_login = st.form_submit_button("🚀 Acceder a mi Panel", use_container_width=True)
 
                 if submit_login:
@@ -99,7 +118,7 @@ def render_login_page():
                         else:
                             st.error("Usuario o contraseña incorrectos.")
 
-            st.info("💡 **Tu cuenta:** Ya está preconfigurada con tus deportistas actuales. Usuario: **`juanan`** | Contraseña: **`juanan123`** (puedes cambiarla una vez dentro).")
+            st.info("💡 **Acceso rápido:** Tu cuenta está preseleccionada. Solo introduce tu contraseña (**`juanan123`**) y pulsa *Acceder a mi Panel*.")
 
         with tab_register:
             st.markdown("#### Alta de Nuevo Entrenador")
@@ -137,18 +156,20 @@ def render_login_page():
                         else:
                             st.error(msg)
 
-if not st.session_state["authenticated"]:
+if not st.session_state.get("authenticated", False):
     render_login_page()
     st.stop()
 
 # Si está autenticado, cargar su configuración aislada
-current_username = st.session_state["username"]
-current_user = auth_manager.get_user(current_username)
+current_username = st.session_state.get("username", "")
+current_user = auth_manager.get_user(current_username) if current_username else None
 if not current_user:
     st.session_state["authenticated"] = False
+    st.session_state["username"] = None
     st.rerun()
+    st.stop()
 
-config_data = current_user
+config_data = current_user or {}
 
 def save_config(new_config):
     auth_manager.save_user_config(current_username, new_config)

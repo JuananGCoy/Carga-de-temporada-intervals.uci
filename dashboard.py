@@ -6,6 +6,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import calendar
 import intervals_api
+import report_generator
 import requests
 import json
 import os
@@ -1121,6 +1122,119 @@ def render_dashboard(active_athlete, coach_api_key, coach_athlete_id, athletes_l
         else:
             st.info(f"**{title}**\n\n{desc}")
 
+    # SECCIÓN: REVISIÓN EXHAUSTIVA DE SESIONES Y SENSACIONES (FEEDBACK CLAVE)
+    st.markdown("---")
+    st.markdown("### 🧠 Revisión Exhaustiva de Entrenamientos y Sensaciones")
+    st.caption("Revisión profunda cruzando datos fisiológicos objetivos (TSS, FC, ritmo, distancia) con el esfuerzo percibido (RPE 1-10) y las sensaciones reales reportadas por el deportista.")
+    
+    key_sessions = report_generator.analyze_key_sessions(activities)
+    
+    # Calcular métricas globales de sensaciones del periodo
+    rpes = []
+    feels = []
+    for a in activities:
+        r_val = a.get('icu_rpe') if a.get('icu_rpe') is not None else a.get('perceived_exertion')
+        if r_val is not None:
+            try:
+                rpes.append(float(r_val))
+            except (ValueError, TypeError):
+                pass
+        f_val = a.get('feel')
+        if f_val is not None:
+            try:
+                feels.append(int(f_val))
+            except (ValueError, TypeError):
+                pass
+
+    athlete_comments_count = sum(1 for a in activities if report_generator.clean_athlete_comment(a.get('description'), a.get('icu_athlete_comments')))
+    
+    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    with col_f1:
+        avg_rpe = (sum(rpes) / len(rpes)) if rpes else None
+        rpe_lbl, rpe_col = report_generator.format_rpe(round(avg_rpe)) if avg_rpe is not None else ("Sin registros", "#94a3b8")
+        st.metric(
+            label="📊 Dificultad Media (RPE)",
+            value=f"{avg_rpe:.1f} / 10" if avg_rpe is not None else "N/D",
+            delta=rpe_lbl if avg_rpe is not None else None,
+            help="Media de esfuerzo percibido en la escala Borg CR10 reportado en las actividades."
+        )
+    with col_f2:
+        avg_feel = (sum(feels) / len(feels)) if feels else None
+        f_lbl, f_emo, f_col = report_generator.format_feel(round(avg_feel)) if avg_feel is not None else ("Sin registros", "⚪", "#94a3b8")
+        st.metric(
+            label="🔋 Sensación Promedio",
+            value=f"{f_emo} {avg_feel:.1f} / 5" if avg_feel is not None else "N/D",
+            delta=f_lbl if avg_feel is not None else None,
+            help="Media de sensaciones (1=Terrible a 5=Fuerte/Excelente)."
+        )
+    with col_f3:
+        st.metric(
+            label="💬 Sesiones con Feedback",
+            value=f"{athlete_comments_count} sesiones",
+            help="Número de entrenamientos donde el deportista dejó notas, sensaciones o comentarios escritos."
+        )
+    with col_f4:
+        st.metric(
+            label="🎯 Sesiones Clave Detectadas",
+            value=f"{len(key_sessions)} sesiones",
+            help="Competiciones, tiradas largas, series de ritmo o trabajo de fuerza analizados a fondo."
+        )
+
+    if key_sessions:
+        st.markdown("#### 🔍 Desglose y Veredicto Técnico de Sesiones Clave:")
+        for idx, s in enumerate(key_sessions):
+            f_lbl, f_emo, f_col = report_generator.format_feel(s.get('feel'))
+            rpe_lbl, rpe_col = report_generator.format_rpe(s.get('rpe'))
+            d_str = s.get('date', '')
+            try:
+                date_formatted = datetime.strptime(d_str, '%Y-%m-%d').strftime('%d/%m/%Y')
+            except Exception:
+                date_formatted = d_str
+            
+            with st.container():
+                st.markdown(f"""
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #0284c7; border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+                        <div>
+                            <span style="background: #f1f5f9; color: #1e293b; font-weight: 600; font-size: 0.8rem; padding: 3px 8px; border-radius: 4px; margin-right: 8px;">{s.get('tag', 'Sesión')}</span>
+                            <span style="font-weight: 700; font-size: 1.05rem; color: #0f172a;">{s.get('name', 'Entrenamiento')}</span>
+                            <span style="color: #64748b; font-size: 0.85rem; margin-left: 8px;">📅 {date_formatted}</span>
+                        </div>
+                        <div>
+                            <span style="background: {f_col}22; color: {f_col}; font-weight: 600; font-size: 0.8rem; padding: 3px 8px; border-radius: 4px; margin-right: 6px;">Sensación: {f_emo} {f_lbl}</span>
+                            <span style="background: {rpe_col}22; color: {rpe_col}; font-weight: 600; font-size: 0.8rem; padding: 3px 8px; border-radius: 4px;">RPE: {rpe_lbl}</span>
+                        </div>
+                    </div>
+                    <div style="color: #475569; font-size: 0.9rem; margin-bottom: 8px;">
+                        ⏱️ <b>Tiempo:</b> {s.get('duration_str', '-')} &nbsp;|&nbsp; 
+                        📏 <b>Distancia:</b> {s.get('distance_km', 0)} km &nbsp;|&nbsp; 
+                        ⚡ <b>Carga:</b> {s.get('tss', 0)} TSS &nbsp;|&nbsp; 
+                        ❤️ <b>FC Media:</b> {s.get('avg_hr', 0)} ppm
+                    </div>
+                    <div style="background: #f8fafc; border-radius: 6px; padding: 10px 12px; font-size: 0.9rem; color: #1e293b; line-height: 1.45; border-left: 3px solid #0284c7;">
+                        <b>Diagnóstico Fisiológico:</b> {s.get('verdict', '')}
+                    </div>
+                    {f'''<div style="margin-top: 8px; padding: 8px 12px; background: #eff6ff; border-radius: 6px; font-size: 0.88rem; color: #1e40af;">
+                        🗣️ <b>Comentario del deportista:</b> "<em>{s.get('comment')}</em>"
+                    </div>''' if s.get('comment') else ''}
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.info("💡 No se detectaron sesiones clave de alta exigencia o tiradas largas en este periodo.")
+
+    # Generación de preguntas activas de feedback
+    st.markdown("#### 🗣️ Preguntas Clave para Solicitar Feedback al Deportista:")
+    st.caption("Copia y envía estas preguntas directas a tu atleta por WhatsApp o chat para profundizar en su recuperación y sensaciones:")
+    
+    feedback_questions = report_generator.generate_coach_feedback_questions(
+        key_sessions=key_sessions,
+        wellness_data={},
+        skipped_count=0,
+        athlete_name=active_athlete.get('name', 'Deportista')
+    )
+    for q_idx, q in enumerate(feedback_questions, 1):
+        st.info(f"**Pregunta {q_idx}:** {q}")
+
     # SECCIÓN: ANÁLISIS PROFUNDO CON IA (GEMINI)
     with st.expander("🤖 Asistente de Análisis con Inteligencia Artificial (Gemini)", expanded=False):
         st.markdown(
@@ -1202,6 +1316,17 @@ def render_dashboard(active_athlete, coach_api_key, coach_athlete_id, athletes_l
         table_df['IF (%)'] = filtered_act['icu_intensity'].fillna(0).round(1)
         table_df['FC Media'] = filtered_act['average_heartrate'].fillna(0).astype(int)
         
+        if 'feel' in filtered_act.columns:
+            table_df['Sensación'] = filtered_act['feel'].apply(lambda f: f"{report_generator.format_feel(f)[1]} {report_generator.format_feel(f)[0]}" if pd.notna(f) else "-")
+        else:
+            table_df['Sensación'] = "-"
+
+        rpe_col_src = 'icu_rpe' if 'icu_rpe' in filtered_act.columns else ('perceived_exertion' if 'perceived_exertion' in filtered_act.columns else None)
+        if rpe_col_src:
+            table_df['RPE (1-10)'] = filtered_act[rpe_col_src].apply(lambda r: f"{int(r)}/10" if pd.notna(r) and str(r).strip() != "" else "-")
+        else:
+            table_df['RPE (1-10)'] = "-"
+        
         st.dataframe(
             table_df,
             use_container_width=True,
@@ -1212,7 +1337,9 @@ def render_dashboard(active_athlete, coach_api_key, coach_athlete_id, athletes_l
                 "Distancia (km)": st.column_config.NumberColumn(format="%.2f km"),
                 "TSS": st.column_config.NumberColumn(format="%d"),
                 "IF (%)": st.column_config.NumberColumn(format="%.1f%%"),
-                "FC Media": st.column_config.NumberColumn(format="%d ppm")
+                "FC Media": st.column_config.NumberColumn(format="%d ppm"),
+                "Sensación": st.column_config.TextColumn(width="medium"),
+                "RPE (1-10)": st.column_config.TextColumn(width="small")
             },
             hide_index=True
         )

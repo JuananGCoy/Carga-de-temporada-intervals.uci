@@ -29,6 +29,89 @@ def format_sec_to_hours_mins(seconds):
         return f"{hours}h {minutes:02d}m"
     return f"{minutes}m"
 
+def format_feel(feel_val):
+    """
+    Formatea las sensaciones registradas en Intervals.icu (escala 1 a 5):
+    1 = Terrible (😞 Muy mal / Agotado)
+    2 = Poor (😕 Mal / Pesado)
+    3 = Normal (😐 Normal / Asimilando)
+    4 = Good (🙂 Bien / Buenas sensaciones)
+    5 = Strong (🚀 Fuerte / Con chispa)
+    """
+    if feel_val is None:
+        return ("Sin registrar", "⚪", "#94a3b8")
+    try:
+        val = int(feel_val)
+        if val == 1:
+            return ("Terrible / Agotado", "😞", "#ef4444")
+        elif val == 2:
+            return ("Mal / Pesado", "😕", "#f97316")
+        elif val == 3:
+            return ("Normal / Estable", "😐", "#eab308")
+        elif val == 4:
+            return ("Bien / Buenas sensaciones", "🙂", "#10b981")
+        elif val == 5:
+            return ("Fuerte / Excelente", "🚀", "#059669")
+    except Exception:
+        pass
+    return ("Sin registrar", "⚪", "#94a3b8")
+
+def format_rpe(rpe_val):
+    """
+    Formatea el Esfuerzo Percibido (RPE de 1 a 10):
+    1-2: Muy suave / Regenerativo (Verde claro)
+    3-4: Suave / Fondo aeróbico (Verde)
+    5-6: Moderado / Tempo (Amarillo)
+    7-8: Duro / Umbral (Naranja)
+    9-10: Máximo / Extenuante (Rojo)
+    """
+    if rpe_val is None:
+        return ("-", "#94a3b8")
+    try:
+        val = int(rpe_val)
+        if val <= 2:
+            return (f"{val}/10 (Muy suave)", "#10b981")
+        elif val <= 4:
+            return (f"{val}/10 (Suave)", "#22c55e")
+        elif val <= 6:
+            return (f"{val}/10 (Moderado)", "#eab308")
+        elif val <= 8:
+            return (f"{val}/10 (Duro)", "#f97316")
+        else:
+            return (f"{val}/10 (Máximo)", "#ef4444")
+    except Exception:
+        pass
+    return (f"{rpe_val}/10", "#64748b")
+
+def clean_athlete_comment(desc, comments):
+    """
+    Extrae y limpia comentarios o sensaciones escritas por el atleta,
+    descartando textos técnicos automáticos de apps de clima (Klimat) o estructuras de intervalos.
+    """
+    if comments and str(comments).strip():
+        return str(comments).strip()
+    if not desc or not str(desc).strip():
+        return None
+    
+    lines = str(desc).strip().splitlines()
+    clean_lines = []
+    for line in lines:
+        line_str = line.strip()
+        # Omitir textos de clima o generadores automáticos
+        if any(w in line_str.lower() for w in ['klimatapp', 'sensación térmica', 'sensacion termica', 'humedad', 'viento desde', 'main set', 'warm up', 'cooldown']):
+            continue
+        if line_str.startswith('- ') and 'pace' in line_str.lower():
+            continue
+        if line_str:
+            clean_lines.append(line_str)
+            
+    if clean_lines:
+        res = " ".join(clean_lines)
+        if len(res) > 280:
+            res = res[:277] + "..."
+        return res
+    return None
+
 def extract_period_zones(activities):
     """
     Agrega el tiempo en zonas de frecuencia cardíaca y potencia de las actividades del periodo.
@@ -42,7 +125,6 @@ def extract_period_zones(activities):
     has_zones = False
 
     for act in activities:
-        # Prioridad 1: Frecuencia Cardíaca
         hz = act.get('icu_hr_zone_times')
         if hz and isinstance(hz, list):
             for i, s in enumerate(hz[:7]):
@@ -52,7 +134,6 @@ def extract_period_zones(activities):
                 if val > 0:
                     has_zones = True
         else:
-            # Prioridad 2: Potencia (ciclismo) si no hay FC
             pz = act.get('icu_zone_times')
             if pz and isinstance(pz, list):
                 for item in pz:
@@ -104,8 +185,8 @@ def extract_period_zones(activities):
 def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach=False):
     """
     Compara los entrenamientos programados (WORKOUT) con las actividades reales en el rango de fechas.
-    Determina con exactitud qué se ha completado, qué se ha saltado y qué sesiones fueron adicionales.
-    Calcula además la sesión estrella y la distribución de zonas.
+    Determina qué se ha completado, qué se ha saltado y qué sesiones fueron adicionales.
+    Extrae Feel, RPE y comentarios reales de cada sesión.
     """
     success_ev, events = intervals_api.get_athlete_events(athlete_id, api_key, start_date, end_date, is_coach=is_coach)
     success_act, activities = intervals_api.get_athlete_activities(athlete_id, api_key, start_date, end_date, is_coach=is_coach)
@@ -120,7 +201,6 @@ def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach
     extra = []
     matched_activity_ids = set()
 
-    # Normalización de deportes para matching
     def sport_matches(sport1, sport2):
         s1 = str(sport1).lower().strip()
         s2 = str(sport2).lower().strip()
@@ -140,14 +220,12 @@ def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach
         p_id = p.get('id')
         p_name = p.get('name', 'Entrenamiento planificado')
 
-        # Intento 1: Emparejamiento por paired_event_id
         match = None
         for a in act_list:
             if a.get('paired_event_id') == p_id:
                 match = a
                 break
 
-        # Intento 2: Misma fecha y mismo deporte
         if not match:
             for a in act_list:
                 if a.get('id') not in matched_activity_ids:
@@ -168,7 +246,11 @@ def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach
                 "moving_time": match.get('moving_time', 0),
                 "distance_km": round((match.get('distance', 0) or 0) / 1000.0, 2),
                 "tss": int(match.get('icu_training_load', 0) or 0),
-                "avg_hr": int(match.get('average_heartrate', 0) or 0)
+                "avg_hr": int(match.get('average_heartrate', 0) or 0),
+                "feel": match.get('feel'),
+                "rpe": match.get('icu_rpe') or match.get('perceived_exertion'),
+                "comment": clean_athlete_comment(match.get('description'), match.get('icu_athlete_comments')),
+                "raw_activity": match
             })
         else:
             skipped.append({
@@ -178,7 +260,6 @@ def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach
                 "description": p.get('description', '')
             })
 
-    # Actividades que no estaban planificadas (sesiones libres o extras)
     for a in act_list:
         if a.get('id') not in matched_activity_ids:
             extra.append({
@@ -189,10 +270,13 @@ def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach
                 "moving_time": a.get('moving_time', 0),
                 "distance_km": round((a.get('distance', 0) or 0) / 1000.0, 2),
                 "tss": int(a.get('icu_training_load', 0) or 0),
-                "avg_hr": int(a.get('average_heartrate', 0) or 0)
+                "avg_hr": int(a.get('average_heartrate', 0) or 0),
+                "feel": a.get('feel'),
+                "rpe": a.get('icu_rpe') or a.get('perceived_exertion'),
+                "comment": clean_athlete_comment(a.get('description'), a.get('icu_athlete_comments')),
+                "raw_activity": a
             })
 
-    # Cálculos globales
     total_planned = len(planned_workouts)
     completed_count = len(completed)
     skipped_count = len(skipped)
@@ -203,7 +287,6 @@ def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach
     total_tss = sum(int(a.get('icu_training_load', 0) or 0) for a in act_list)
     total_hours = round(total_duration_sec / 3600.0, 1)
 
-    # Desglose por disciplina con cálculo de porcentaje
     sports_breakdown = {}
     for a in act_list:
         sp = a.get('type', 'Other')
@@ -219,7 +302,7 @@ def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach
         sports_breakdown[k]["km"] = round(sports_breakdown[k]["km"], 1)
         sports_breakdown[k]["pct"] = round((sports_breakdown[k]["hours"] / total_hours * 100.0), 1) if total_hours > 0 else 0.0
 
-    # Detección de la Sesión Estrella (mayor TSS o más larga)
+    # Detección de la Sesión Estrella
     star_session = None
     if act_list:
         best_act = max(act_list, key=lambda x: (float(x.get('icu_training_load', 0) or 0), float(x.get('moving_time', 0) or 0)))
@@ -233,10 +316,12 @@ def match_workouts_in_period(athlete_id, api_key, start_date, end_date, is_coach
             "duration_str": format_sec_to_hours_mins(best_act.get('moving_time', 0)),
             "distance_km": round((best_act.get('distance', 0) or 0) / 1000.0, 1),
             "tss": int(best_act.get('icu_training_load', 0) or 0),
-            "avg_hr": int(best_act.get('average_heartrate', 0) or 0)
+            "avg_hr": int(best_act.get('average_heartrate', 0) or 0),
+            "feel": best_act.get('feel'),
+            "rpe": best_act.get('icu_rpe') or best_act.get('perceived_exertion'),
+            "comment": clean_athlete_comment(best_act.get('description'), best_act.get('icu_athlete_comments'))
         }
 
-    # Distribución de zonas en el periodo
     zones_data = extract_period_zones(act_list)
 
     return {
@@ -318,14 +403,156 @@ def get_upcoming_races(athlete_id, api_key, is_coach=False):
                 pass
     return sorted(races, key=lambda x: x['days_left'])
 
+def analyze_key_sessions(activities):
+    """
+    Clasifica y realiza una revisión técnica y calculada de las sesiones clave del periodo:
+    - Competición / Carrera
+    - Tirada Larga / Fondo
+    - Sesión de Calidad / Series / Umbral
+    - Fuerza / Prevención
+    - Sesión con Sensaciones Extremas (Feel 5 o Feel 1-2)
+    Cruza los datos fisiológicos (ritmo, FC, TSS) con las sensaciones reportadas (Feel y RPE).
+    """
+    if not activities:
+        return []
+
+    scored_acts = []
+    for a in activities:
+        name = str(a.get('name', ''))
+        sport = str(a.get('type', 'Workout'))
+        moving_time = float(a.get('moving_time', 0) or 0)
+        dist_km = round((float(a.get('distance', 0) or 0)) / 1000.0, 1)
+        tss = int(a.get('icu_training_load', 0) or 0)
+        avg_hr = int(a.get('average_heartrate', 0) or 0)
+        feel = a.get('feel')
+        rpe = a.get('icu_rpe') or a.get('perceived_exertion')
+        comment = clean_athlete_comment(a.get('description'), a.get('icu_athlete_comments'))
+        date_str = str(a.get('start_date_local', ''))[:10]
+
+        # Clasificación de tipo de sesión
+        name_lower = name.lower()
+        is_race = any(w in name_lower for w in ['maratón', 'maraton', 'media maratón', 'media maraton', '10k', '5k', 'triatlón', 'triatlon', 'competi']) or (rpe is not None and int(rpe) == 10 and dist_km >= 10)
+        is_long = dist_km >= 16.0 or moving_time >= 5400 or any(w in name_lower for w in ['tirada', 'largo', 'fondo', '20k', '25k', '30k'])
+        is_quality = any(w in name_lower for w in ['series', 'interval', 'rm', 'tempo', 'progresivo', 'umbral', 'fartlek', 'rectas']) or (moving_time > 0 and (tss / (moving_time / 3600.0) >= 65))
+        is_gym = sport in ['WeightTraining'] or any(w in name_lower for w in ['fuerza', 'gimnasio', 'gym', 'prehab', 'core', 'pesas'])
+        is_recovery = any(w in name_lower for w in ['regenerativo', 'recuperación', 'recuperacion', 'descarga', 'shakeout', 'trote'])
+
+        # Diagnóstico técnico calculado
+        verdict = ""
+        feel_label, feel_emoji, _ = format_feel(feel)
+        rpe_label, _ = format_rpe(rpe)
+
+        if is_race:
+            tag = "🏆 Competición / Test"
+            verdict = f"Esfuerzo máximo en competición. "
+            if rpe:
+                verdict += f"Dificultad reportada: {rpe}/10. "
+            if avg_hr > 0:
+                verdict += f"Frecuencia cardíaca media de {avg_hr} ppm, manteniendo la intensidad en zona de rendimiento. "
+            if feel in [4, 5]:
+                verdict += "Excelente asimilación del ritmo competitivo."
+            elif feel in [1, 2]:
+                verdict += "Reportaste fatiga o pesadez durante la prueba; analizaremos si faltó avituallamiento o descarga previa."
+        elif is_long:
+            tag = "🏃‍♂️ Tirada Larga / Volumen Clave"
+            verdict = f"Pilar de resistencia aeróbica del microciclo ({dist_km} km | {format_sec_to_hours_mins(moving_time)}). "
+            if rpe and int(rpe) >= 8:
+                verdict += f"Percibido como muy exigente ({rpe}/10). "
+                if feel in [1, 2]:
+                    verdict += "La combinación de RPE alto y malas sensaciones indica fatiga residual acumulada o falta de carbohidratos intra-entreno."
+                else:
+                    verdict += "Esfuerzo duro pero normal debido a la carga de kilómetros sobre las piernas."
+            elif feel in [4, 5]:
+                verdict += f"Sensaciones excelentes ({feel_emoji} {feel_label}). Tu capacidad de mantener el pulso ({avg_hr} ppm) sin deriva cardíaca demuestra que el fondo aeróbico está en un gran momento."
+            else:
+                verdict += f"Rodaje completado con solvencia ({tss} TSS)."
+        elif is_quality:
+            tag = "⚡ Sesión de Ritmo / Calidad"
+            verdict = f"Trabajo de potencia y umbral. "
+            if feel == 5:
+                verdict += f"¡Sensaciones sobresalientes ({feel_emoji})! Terminar un entrenamiento de calidad con chispa confirma que la frescura y la activación neuromuscular están al 100%."
+            elif feel == 2 or (rpe and int(rpe) >= 8):
+                verdict += f"Reportaste alta dificultad ({rpe}/10) y pesadez ({feel_label}). Las piernas llegaron cargadas; en estos días es vital no obsesionarse con el cronómetro y priorizar la técnica."
+            else:
+                verdict += f"Estímulo bien digerido ({tss} TSS, FC media {avg_hr} ppm)."
+        elif is_gym:
+            tag = "🏋️‍♂️ Fuerza & Resiliencia Muscular"
+            verdict = f"Sesión fundamental para proteger rodillas, sóleos y cadera. Clave para transferir fuerza a la zancada y evitar sobrecargas articulares en las tiradas largas."
+        elif is_recovery:
+            tag = "🌱 Regenerativo / Descarga"
+            if rpe and int(rpe) >= 6:
+                verdict = f"⚠️ Alerta: Un regenerativo no debería sentirse a {rpe}/10. Si el cuerpo te pide esfuerzo para rodar suave, el sistema nervioso está pidiendo más descanso o menos ritmo."
+            else:
+                verdict = f"Recuperación activa impecable ({rpe_label}). Permitió el vaciado de fatiga sin añadir estrés muscular."
+        else:
+            tag = "🎯 Rodaje de Base"
+            verdict = f"Consolidación de kilómetros aeróbicos a {avg_hr} ppm."
+
+        scored_acts.append({
+            "name": name,
+            "sport": sport,
+            "date": date_str,
+            "moving_time": moving_time,
+            "duration_str": format_sec_to_hours_mins(moving_time),
+            "distance_km": dist_km,
+            "tss": tss,
+            "avg_hr": avg_hr,
+            "feel": feel,
+            "rpe": rpe,
+            "comment": comment,
+            "tag": tag,
+            "verdict": verdict,
+            "priority": 5 if is_race else (4 if is_long else (3 if is_quality else (2 if is_gym else 1)))
+        })
+
+    # Ordenar por prioridad (carreras > tiradas largas > calidad > fuerza) y luego por fecha más reciente
+    sorted_sessions = sorted(scored_acts, key=lambda x: (x['priority'], x['tss']), reverse=True)
+    return sorted_sessions[:4]
+
+def generate_coach_feedback_questions(key_sessions, wellness_data, skipped_count, athlete_name="Deportista"):
+    """
+    Genera 2 o 3 preguntas calculadas, precisas y personalizadas para el deportista,
+    abriendo un canal de comunicación real sobre sensaciones, fatiga o dolores.
+    """
+    questions = []
+
+    # 1. Pregunta sobre sensaciones en sesiones con RPE alto o Feel bajo
+    hard_session = next((s for s in key_sessions if (s.get('rpe') and int(s.get('rpe')) >= 8) or s.get('feel') in [1, 2]), None)
+    if hard_session:
+        date_fmt = datetime.strptime(hard_session['date'], '%Y-%m-%d').strftime('%d/%m')
+        comm_note = f" (comentaste: '_{hard_session['comment']}_')" if hard_session.get('comment') else ""
+        questions.append(
+            f"En la sesión del **{date_fmt} ({hard_session['name']})** reportaste un esfuerzo elevado ({hard_session['rpe']}/10) y sensaciones de pesadez{comm_note}: "
+            f"¿Notaste alguna sobrecarga muscular localizada (gemelos, isquios, rodilla) o fue fatiga puramente energética/cardiovascular?"
+        )
+
+    # 2. Pregunta sobre la tirada larga
+    long_session = next((s for s in key_sessions if "Tirada Larga" in s.get('tag', '') or s.get('distance_km', 0) >= 18), None)
+    if long_session:
+        date_fmt = datetime.strptime(long_session['date'], '%Y-%m-%d').strftime('%d/%m')
+        questions.append(
+            f"Durante los **{long_session['distance_km']} km del {date_fmt}**: "
+            f"¿Cómo sentiste la energía en los últimos 4-5 km? ¿Tomaste geles/carbohidratos según lo previsto o sentiste bajón de ritmo al final?"
+        )
+
+    # 3. Pregunta sobre sesiones saltadas
+    if skipped_count > 0 and len(questions) < 3:
+        questions.append(
+            f"Esta semana quedaron **{skipped_count} entrenamiento(s) sin registrar**: "
+            f"¿Ha sido por falta de tiempo de agenda o porque el cuerpo te pedía parar por cansancio? Cuéntame para ajustar las cargas del próximo bloque."
+        )
+
+    # 4. Pregunta general si no hay alertas
+    if len(questions) < 2:
+        questions.append(
+            "¿Cómo sientes las piernas a nivel de tono muscular general y qué tal ha sido tu descanso nocturno estos días?"
+        )
+
+    return questions
+
 def analyze_training_insights(match_data, wellness_data, report_type="weekly", athlete_name="Deportista"):
     """
-    Motor de análisis fisiológico y pedagógico de entrenamiento.
-    Extrae con precisión:
-    1. Qué adaptaciones fisiológicas ha trabajado el deportista en este ciclo.
-    2. Puntos fuertes consolidados y progresos tangibles.
-    3. Análisis de la sesión estrella.
-    4. Recomendaciones accionables para el próximo periodo.
+    Motor integral de análisis fisiológico, sensaciones y retroalimentación técnica.
     """
     comp = match_data['compliance_pct']
     total_hours = match_data['total_hours']
@@ -335,158 +562,114 @@ def analyze_training_insights(match_data, wellness_data, report_type="weekly", a
     tsb = wellness_data['current_tsb']
     ctl = wellness_data['end_ctl']
     delta_ctl = wellness_data['ctl_delta']
-    star = match_data.get('star_session')
+    raw_acts = match_data.get('raw_activities', [])
 
-    period_word = "esta semana" if report_type == "weekly" else "este mes"
+    # Análisis exhaustivo de sesiones clave
+    key_sessions = analyze_key_sessions(raw_acts)
 
-    # --- 1. ¿Qué has trabajado? (Sistemas fisiológicos estimulados) ---
+    # Balance de sensaciones del periodo
+    feels_reported = [int(a.get('feel')) for a in raw_acts if a.get('feel') is not None]
+    rpes_reported = [int(a.get('icu_rpe') or a.get('perceived_exertion')) for a in raw_acts if (a.get('icu_rpe') or a.get('perceived_exertion')) is not None]
+
+    strong_count = sum(1 for f in feels_reported if f in [4, 5])
+    tired_count = sum(1 for f in feels_reported if f in [1, 2])
+    avg_rpe = round(sum(rpes_reported) / len(rpes_reported), 1) if rpes_reported else None
+
+    # Preguntas de feedback específicas
+    feedback_questions = generate_coach_feedback_questions(key_sessions, wellness_data, match_data['skipped_count'], athlete_name)
+
+    # Adaptaciones fisiológicas trabajadas
     what_worked = []
-
-    # A) Base Aeróbica
     if zones['has_zones'] and zones['low_pct'] >= 65:
         what_worked.append({
             "icon": "🫀",
-            "title": "Motor Aeróbico y Eficiencia Metabólica (Zona 1 - 2)",
-            "desc": f"Has invertido {zones['low_hours']}h ({zones['low_pct']}% de tu tiempo) en intensidades controladas. "
-                    "Esto estimula la multiplicación de mitocondrias y capilares en tus fibras musculares, enseñando a tu organismo a usar las grasas como combustible principal y preservando glucógeno."
+            "title": "Motor Aeróbico y Densidad Mitocondrial (Zona 1 - 2)",
+            "desc": f"Invertiste {zones['low_hours']}h ({zones['low_pct']}% del total) en ritmo submáximo. Esta franja enseña a tu metabolismo a ahorrar glucógeno utilizando ácidos grasos libres, clave para no desfallecer en distancias medias y largas."
         })
     elif total_hours > 0:
         what_worked.append({
             "icon": "🫀",
-            "title": "Fondo y Capacidad Cardiovascular General",
-            "desc": f"Has sumado {total_hours} horas de movimiento activo en el periodo, construyendo la base de resistencia que te permitirá tolerar mayores intensidades más adelante."
+            "title": "Base Cardiovascular y Eficiencia",
+            "desc": f"Sumaste {total_hours} horas en movimiento, manteniendo la permeabilidad capilar y la base aeróbica requerida para tolerar cargas superiores."
         })
 
-    # B) Fuerza y Estabilidad Muscular
     gym_info = sports.get('Fuerza / Gimnasio')
     if gym_info and gym_info['hours'] > 0:
         what_worked.append({
             "icon": "🏋️‍♂️",
-            "title": "Fuerza Estructural y Prevención de Lesiones",
-            "desc": f"Completaste {gym_info['hours']}h de trabajo de fuerza. Fortalecer tendones, glúteos y core no solo te hace más potente en cada brazada o zancada, sino que reduce drásticamente el riesgo de sobrecargas articulares."
-        })
-    elif 'Fuerza / Gimnasio' in [s['sport'] for s in match_data['skipped']]:
-        what_worked.append({
-            "icon": "⚠️",
-            "title": "Fuerza Pendiente de Reforzar",
-            "desc": "Se han quedado sesiones de gimnasio sin realizar. Recuerda que la fuerza es el pilar que sostiene todo el volumen de nado, bici y carrera."
+            "title": "Fuerza Estructural y Prevención",
+            "desc": f"Completaste {gym_info['hours']}h de trabajo de fuerza. Esta disciplina previene la fatiga excéntrica de cuádriceps y gemelos en las bajadas y en la segunda mitad de la tirada larga."
         })
 
-    # C) Ritmo y Umbral / Calidad
     if zones['has_zones'] and zones['high_pct'] >= 10:
         what_worked.append({
             "icon": "⚡",
-            "title": "Ritmo Específico y Tolerancia al Lactato (Zonas 4 y 5)",
-            "desc": f"Dedicaste {zones['high_hours']}h ({zones['high_pct']}%) a intensidades altas. Este trabajo desplaza tu umbral de lactato hacia la derecha, permitiéndote rodar y correr más rápido con menor sensación de agonía."
-        })
-    elif zones['has_zones'] and zones['mid_pct'] >= 25:
-        what_worked.append({
-            "icon": "🎯",
-            "title": "Ritmo de Crucero / Tempo (Zona 3)",
-            "desc": f"Registraste {zones['mid_hours']}h ({zones['mid_pct']}%) en zona media. Buen trabajo de ritmo de crucero, aunque en las próximas semanas conviene polarizar más: rodar más suave en días fáciles para tener chispa en las series duras."
+            "title": "Capacidad Glucolítica y Ritmo de Competición (Zonas 4 y 5)",
+            "desc": f"Dedicaste {zones['high_hours']}h ({zones['high_pct']}%) a intensidades vivas, entrenando la velocidad de reciclaje de lactato cuando se rueda a ritmos exigentes."
         })
 
-    # D) Disciplina líder
-    if sports:
-        top_sport = max(sports.items(), key=lambda x: x[1]['hours'])
-        if top_sport[0] in ['Ciclismo', 'Carrera', 'Natación']:
-            km_txt = f" ({top_sport[1]['km']} km)" if top_sport[1]['km'] > 0 else ""
-            what_worked.append({
-                "icon": top_sport[1]['icon'],
-                "title": f"Foco Principal: {top_sport[0]}",
-                "desc": f"Ha sido la disciplina con mayor volumen ({top_sport[1]['hours']}h{km_txt}), consolidando sensaciones técnicas y resistencia específica sobre este deporte."
-            })
-
-    # --- 2. Puntos Fuertes Mejorados ---
+    # Puntos fuertes consolidados
     strengths = []
-
     if comp >= 85:
-        strengths.append(f"🎯 **Constancia sobresaliente ({comp}% completado):** La regularidad es la variable #1 que predice el éxito deportivo. Has cumplido con gran disciplina el plan marcado.")
-    elif comp >= 70:
-        strengths.append(f"👍 **Buena capacidad de cumplimiento ({comp}%):** A pesar de los imprevistos de la rutina diaria, has salvado el núcleo duro de los entrenamientos.")
-
+        strengths.append(f"🎯 **Cumplimiento del {comp}%:** Capacidad de seguir el plan semana tras semana sin altibajos.")
+    if strong_count > 0:
+        strengths.append(f"🚀 **Sensaciones de chispa:** En {strong_count} sesión(es) reportaste sensaciones de fuerza y soltura en las piernas.")
     if zones['has_zones'] and zones['low_pct'] >= 70:
-        strengths.append(f"🟢 **Excelente control de intensidad:** Has respetado las zonas suaves ({zones['low_pct']}% en Z1-Z2), evitando la trampa de 'rodar siempre en fatiga media'.")
-
-    if total_tss >= 400:
-        strengths.append(f"🔥 **Capacidad de carga sólida:** Has digerido {total_tss} puntos TSS en el periodo sin saturar en exceso el organismo, lo que demuestra que tu motor está creciendo.")
-
-    if gym_info and gym_info['hours'] > 0:
-        strengths.append("💪 **Compromiso con el trabajo muscular:** Gran disciplina al no saltarte las sesiones de fuerza, un factor diferencial frente a la mayoría de populares.")
-
+        strengths.append(f"🟢 **Disciplina en rodajes suaves:** El {zones['low_pct']}% del tiempo se mantuvo en zonas controladas sin caer en sobreintensidad inútil.")
     if report_type == "monthly" and delta_ctl > 0:
-        strengths.append(f"📈 **Fitness al alza (+{delta_ctl} puntos CTL):** Tu condición física de base se ha incrementado notablemente a lo largo del mes, situándote en {ctl} CTL.")
+        strengths.append(f"📈 **Progresión de condición física:** Incremento de **+{delta_ctl} puntos CTL**, alcanzando un fitness de {ctl}.")
 
     if not strengths:
-        strengths.append("✅ **Actividad constante:** Mantienes activo el hábito deportivo y la base física general.")
+        strengths.append("✅ **Regularidad básica mantenida:** Mantienes el hábito deportivo activo para el siguiente ciclo.")
 
-    # --- 3. Comentario de la Sesión Estrella ---
-    star_comment = ""
-    if star:
-        star_comment = (
-            f"Tu sesión de mayor impacto fue el **{datetime.strptime(star['date'], '%Y-%m-%d').strftime('%d/%m')}**: "
-            f"**{star['name']}** ({star['sport']} - {star['duration_str']}"
-            + (f", {star['distance_km']} km" if star['distance_km'] > 0 else "")
-            + f", {star['tss']} TSS). Este entrenamiento supuso el estímulo clave del periodo para desafiar tu resistencia."
-        )
-
-    # --- 4. Recomendaciones del Entrenador ---
+    # Recomendaciones directas del entrenador
     recommendations = []
-
-    # Estado de fatiga (TSB)
     if tsb < -25:
         recommendations.append(
-            f"🛑 **Priorizar descanso activo (TSB: {tsb}):** Tu cuerpo acumula fatiga aguda. "
-            "Es normal tras días duros, pero para asimilar este trabajo necesitas dormir 7-8 horas, hidratarte bien y no forzar en los días fáciles."
+            f"🛑 **Priorizar asimilación y descanso (TSB: {tsb}):** La fatiga aguda está en zona roja. Los próximos 2-3 días deben ser de rodaje muy suave o descanso activo. Come bien y duerme al menos 7.5h."
         )
     elif -25 <= tsb <= -5:
         recommendations.append(
-            f"🚀 **Punto dulce de adaptación (TSB: {tsb}):** Tu fatiga y tu forma están perfectamente equilibradas. "
-            "Estás en la ventana ideal donde el entrenamiento produce mejoras directas sin riesgo de sobrecarga."
+            f"🚀 **Ventana productiva ideal (TSB: {tsb}):** Tu cuerpo tolera perfectamente los entrenamientos. Momento propicio para meter el siguiente estímulo planificado con confianza."
         )
     elif 5 <= tsb <= 25:
         recommendations.append(
-            f"🏆 **Frescura competitiva alta (TSB: +{tsb}):** Tu cuerpo ha disipado la fatiga. "
-            "Estás en condiciones óptimas para rendir al 100% en competiciones o tests de ritmo."
+            f"🏆 **Frescura competitiva (TSB: +{tsb}):** Poca fatiga acumulada. Si tienes competición o test de ritmo próximo, las piernas están listas para rendir."
         )
     else:
         recommendations.append(
-            f"⚖️ **Periodo de descanso / transición (TSB: +{tsb}):** La fatiga ha caído bastante. "
-            "Es momento de volver a introducir estímulos progresivos de volumen para seguir construyendo."
+            f"⚖️ **Semana de baja fatiga (TSB: +{tsb}):** Es momento de reactivar progresivamente el volumen para que la condición física (CTL) no se estanque."
         )
 
-    # Alerta de sesiones saltadas
     if match_data['skipped_count'] > 0:
         recommendations.append(
-            f"📋 **Gestión de sesiones no realizadas ({match_data['skipped_count']} saltadas):** "
-            "No te preocupes por recuperarlas de golpe metiendo sesiones dobles. Lo ideal es hablar conmigo para reajustar los próximos días sin acumular fatiga innecesaria."
+            f"📋 **No intentes doblar entrenamientos:** Por los {match_data['skipped_count']} entrenamiento(s) que quedaron pendientes, no fuerces sesiones dobles. Habla conmigo y reajustamos el plan."
         )
 
-    recommendations.append(
-        "📝 **Feedback en Intervals:** No olvides registrar tus sensaciones (RPE del 1 al 10) tras cada entrenamiento. Me ayuda enormemente a calibrar tus cargas."
-    )
-
     return {
+        "key_sessions": key_sessions,
+        "feels_reported": feels_reported,
+        "strong_count": strong_count,
+        "tired_count": tired_count,
+        "avg_rpe": avg_rpe,
+        "feedback_questions": feedback_questions,
         "what_worked": what_worked,
         "strengths": strengths,
-        "star_comment": star_comment,
         "recommendations": recommendations
     }
 
 def build_report_html(athlete_name, report_type, start_date, end_date, match_data, wellness_data, upcoming_races, recommendations=None, coach_name="Juanan Coy - Entrenador"):
     """
-    Construye el documento HTML del correo electrónico con diseño limpio, responsivo y profesional.
-    Incorpora gráficos visuales en puro HTML/CSS (barras de distribución, zonas de intensidad y progreso).
+    Construye el documento HTML del correo electrónico con diseño profesional,
+    revisión exhaustiva sesión a sesión, análisis de Feel/RPE y bloque de llamada a feedback.
     """
     title_label = "INFORME SEMANAL DE RENDIMIENTO" if report_type == "weekly" else "BALANCE MENSUAL DE ENTRENAMIENTO"
     period_label = f"{datetime.strptime(start_date, '%Y-%m-%d').strftime('%d %b')} al {datetime.strptime(end_date, '%Y-%m-%d').strftime('%d %b %Y')}"
 
-    # Análisis avanzado
     insights = analyze_training_insights(match_data, wellness_data, report_type, athlete_name)
     if not recommendations:
         recommendations = insights['recommendations']
 
-    # Métricas clave
     comp = match_data['compliance_pct']
     comp_color = "#10b981" if comp >= 80 else ("#f59e0b" if comp >= 65 else "#ef4444")
     comp_badge = "¡Excelente disciplina!" if comp >= 85 else ("Buen cumplimiento" if comp >= 70 else "Atención al plan")
@@ -495,7 +678,75 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
     tsb_color = "#10b981" if -25 <= tsb <= 10 else ("#ef4444" if tsb < -25 else "#3b82f6")
     tsb_badge = "Asimilando óptimo" if -25 <= tsb <= -5 else ("Fresco / Competitivo" if tsb > 0 else "Fatiga acumulada")
 
-    # 1. BARRA VISUAL DE DISTRIBUCIÓN POR DEPORTE
+    # 1. RESUMEN DE PERCEPCIÓN DE ESFUERZO (RPE Y FEEL)
+    rpe_summary_html = ""
+    if insights['avg_rpe'] is not None or insights['strong_count'] > 0:
+        rpe_txt = f"<strong>{insights['avg_rpe']} / 10</strong>" if insights['avg_rpe'] else "-"
+        rpe_summary_html = f"""
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 12.5px; color: #334155;">
+            📊 <strong>Sensaciones del Periodo:</strong> Esfuerzo medio percibido: {rpe_txt} &nbsp;|&nbsp; 
+            🚀 <strong>{insights['strong_count']}</strong> sesión(es) con sensaciones de fuerza &nbsp;|&nbsp; 
+            ⚠️ <strong>{insights['tired_count']}</strong> sesión(es) con pesadez/fatiga
+        </div>
+        """
+
+    # 2. TARJETAS DE SESIONES CLAVE (ANÁLISIS CALCULADO Y EXHAUSTIVO)
+    key_sessions_html = ""
+    for s in insights['key_sessions']:
+        _, s_icon, s_color = get_sport_meta(s['sport'])
+        feel_label, feel_emoji, feel_color = format_feel(s.get('feel'))
+        rpe_label, rpe_color = format_rpe(s.get('rpe'))
+        date_fmt = datetime.strptime(s['date'], '%Y-%m-%d').strftime('%d/%m')
+
+        dist_txt = f" • 📏 <strong>{s['distance_km']} km</strong>" if s['distance_km'] > 0 else ""
+        hr_txt = f" • ❤️ <strong>{s['avg_hr']} ppm</strong>" if s['avg_hr'] > 0 else ""
+        comm_box = f"""
+        <div style="background-color: #f1f5f9; border-left: 3px solid #64748b; padding: 6px 10px; margin: 8px 0; font-size: 12px; color: #334155; font-style: italic;">
+            🗣️ <strong>Tu comentario:</strong> "{s['comment']}"
+        </div>
+        """ if s.get('comment') else ""
+
+        key_sessions_html += f"""
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #0284c7; letter-spacing: 0.5px;">
+                    {s['tag']} • {date_fmt}
+                </span>
+                <span style="font-size: 12px; font-weight: 700; color: #2563eb; background-color: #eff6ff; padding: 2px 8px; border-radius: 4px;">
+                    {s['tss']} TSS
+                </span>
+            </div>
+            <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px;">
+                {s_icon} {s['name']}
+            </div>
+            <div style="font-size: 12.5px; color: #475569; margin-bottom: 6px;">
+                ⏱️ <strong>{s['duration_str']}</strong>{dist_txt}{hr_txt}
+            </div>
+            
+            <!-- BADGES DE SENSACIONES Y ESFUERZO -->
+            <div style="margin: 6px 0 8px 0;">
+                <span style="display: inline-block; background-color: #f8fafc; border: 1px solid {feel_color}; color: #0f172a; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 6px; margin-right: 6px;">
+                    Sensación: {feel_emoji} {feel_label}
+                </span>
+                <span style="display: inline-block; background-color: #f8fafc; border: 1px solid {rpe_color}; color: #0f172a; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 6px;">
+                    Esfuerzo (RPE): <strong style="color: {rpe_color};">{rpe_label}</strong>
+                </span>
+            </div>
+            
+            {comm_box}
+            
+            <div style="font-size: 12.5px; color: #334155; line-height: 1.45; border-top: 1px dashed #e2e8f0; padding-top: 6px; margin-top: 6px;">
+                🔍 <strong>Análisis del entrenador:</strong> {s['verdict']}
+            </div>
+        </div>
+        """
+
+    # 3. PREGUNTAS CLAVE DEL ENTRENADOR (PETICIÓN ACTIVA DE FEEDBACK)
+    questions_html = ""
+    for q in insights['feedback_questions']:
+        questions_html += f"<li style='margin-bottom: 8px; font-size: 13px; line-height: 1.45; color: #1e293b;'>{q}</li>"
+
+    # 4. BARRAS DE DISTRIBUCIÓN POR DEPORTE
     sports_bars_html = ""
     for sp_name, sp_info in match_data['sports_breakdown'].items():
         km_text = f" • {sp_info['km']} km" if sp_info['km'] > 0 else ""
@@ -511,7 +762,7 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
         </div>
         """
 
-    # 2. BARRA VISUAL DE ZONAS DE INTENSIDAD (POLARIZADA)
+    # 5. BARRA DE ZONAS DE INTENSIDAD (POLARIZADA)
     zones = match_data['zones_data']
     zones_visual_html = ""
     if zones['has_zones']:
@@ -532,36 +783,10 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                     <td width="33%" style="text-align: right;"><span style="color: #ef4444; font-weight: bold;">● Alta (Z4-Z5):</span> {zones['high_pct']}% ({zones['high_hours']}h)</td>
                 </tr>
             </table>
-            <div style="font-size: 11px; color: #64748b; margin-top: 6px; font-style: italic;">
-                💡 <strong>Objetivo salud y fondo:</strong> ~80% en Zona Verde (Base) y ~20% en Tempo y Calidad.
-            </div>
         </div>
         """
 
-    # 3. SESIÓN ESTRELLA HIGHLIGHT CARD
-    star = match_data.get('star_session')
-    star_html = ""
-    if star and (star['tss'] > 0 or star['duration_str'] != "0m"):
-        dist_part = f" • 📏 <strong>{star['distance_km']} km</strong>" if star['distance_km'] > 0 else ""
-        hr_part = f" • ❤️ <strong>{star['avg_hr']} ppm</strong>" if star['avg_hr'] > 0 else ""
-        star_html = f"""
-        <div style="background: linear-gradient(135deg, #eff6ff, #f8fafc); border: 1.5px solid #bfdbfe; border-left: 5px solid #2563eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
-            <div style="font-size: 11.5px; text-transform: uppercase; letter-spacing: 1px; color: #2563eb; font-weight: 800; margin-bottom: 4px;">
-                🌟 Sesión Estrella del Periodo
-            </div>
-            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 4px;">
-                {star['icon']} {star['name']}
-            </div>
-            <div style="font-size: 13px; color: #334155; margin-bottom: 6px;">
-                📅 <strong>{datetime.strptime(star['date'], '%Y-%m-%d').strftime('%d/%m/%Y')}</strong> • ⏱️ <strong>{star['duration_str']}</strong>{dist_part} • ⚡ <strong>{star['tss']} TSS</strong>{hr_part}
-            </div>
-            <div style="font-size: 12px; color: #475569; line-height: 1.4;">
-                {insights['star_comment']}
-            </div>
-        </div>
-        """
-
-    # 4. QUÉ HAS TRABAJADO (BLOQUES FISIOLÓGICOS)
+    # 6. QUÉ HAS TRABAJADO (BLOQUES FISIOLÓGICOS)
     what_worked_html = ""
     for item in insights['what_worked']:
         what_worked_html += f"""
@@ -575,50 +800,48 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
         </div>
         """
 
-    # 5. PUNTOS FUERTES MEJORADOS
-    strengths_html = ""
-    for s in insights['strengths']:
-        strengths_html += f"""
-        <li style="margin-bottom: 6px; font-size: 13px; line-height: 1.45; color: #166534;">{s}</li>
-        """
-
-    # 6. TABLA DE ENTRENAMIENTOS REALIZADOS
+    # 7. TABLA DE ENTRENAMIENTOS REALIZADOS
     completed_rows = ""
     for c in match_data['completed']:
         _, icon, _ = get_sport_meta(c['sport'])
         dist_str = f"{c['distance_km']} km" if c['distance_km'] > 0 else "-"
         hr_str = f"{c['avg_hr']} ppm" if c['avg_hr'] > 0 else "-"
+        feel_l, feel_e, _ = format_feel(c.get('feel'))
+        rpe_l, _ = format_rpe(c.get('rpe'))
+        rpe_short = f"{c.get('rpe')}/10" if c.get('rpe') else "-"
         completed_rows += f"""
         <tr style="border-bottom: 1px solid #f1f5f9;">
-            <td style="padding: 8px 10px; font-weight: 600; color: #334155; font-size: 12.5px;">{datetime.strptime(c['date'], '%Y-%m-%d').strftime('%d/%m')}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px;">{icon} {c['sport']}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px; color: #0f172a; font-weight: 500;">{c['actual_name']}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px; color: #475569;">{c['duration_str']}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px; color: #475569;">{dist_str}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px; font-weight: 700; color: #2563eb;">{c['tss']}</td>
-            <td style="padding: 8px 10px; font-size: 12px; text-align: center;"><span style="color: #10b981; font-weight: bold; background-color: #ecfdf5; padding: 2px 8px; border-radius: 4px;">✅ Hecho</span></td>
+            <td style="padding: 8px 10px; font-weight: 600; color: #334155; font-size: 12px;">{datetime.strptime(c['date'], '%Y-%m-%d').strftime('%d/%m')}</td>
+            <td style="padding: 8px 10px; font-size: 12px;">{icon} {c['sport']}</td>
+            <td style="padding: 8px 10px; font-size: 12px; color: #0f172a; font-weight: 500;">{c['actual_name']}</td>
+            <td style="padding: 8px 10px; font-size: 12px; color: #475569;">{c['duration_str']}</td>
+            <td style="padding: 8px 10px; font-size: 12px; color: #475569;">{dist_str}</td>
+            <td style="padding: 8px 10px; font-size: 12px; font-weight: 700; color: #2563eb;">{c['tss']}</td>
+            <td style="padding: 8px 10px; font-size: 11.5px; text-align: center;">{feel_e} {rpe_short}</td>
         </tr>
         """
 
     for e in match_data['extra']:
         _, icon, _ = get_sport_meta(e['sport'])
         dist_str = f"{e['distance_km']} km" if e['distance_km'] > 0 else "-"
+        feel_l, feel_e, _ = format_feel(e.get('feel'))
+        rpe_short = f"{e.get('rpe')}/10" if e.get('rpe') else "-"
         completed_rows += f"""
         <tr style="border-bottom: 1px solid #f1f5f9; background-color: #fafafa;">
-            <td style="padding: 8px 10px; font-weight: 600; color: #64748b; font-size: 12.5px;">{datetime.strptime(e['date'], '%Y-%m-%d').strftime('%d/%m')}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px;">{icon} {e['sport']}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px; color: #334155;">{e['actual_name']}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px; color: #475569;">{e['duration_str']}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px; color: #475569;">{dist_str}</td>
-            <td style="padding: 8px 10px; font-size: 12.5px; font-weight: 700; color: #2563eb;">{e['tss']}</td>
-            <td style="padding: 8px 10px; font-size: 12px; text-align: center;"><span style="color: #6366f1; font-weight: bold; background-color: #eef2ff; padding: 2px 8px; border-radius: 4px;">➕ Extra</span></td>
+            <td style="padding: 8px 10px; font-weight: 600; color: #64748b; font-size: 12px;">{datetime.strptime(e['date'], '%Y-%m-%d').strftime('%d/%m')}</td>
+            <td style="padding: 8px 10px; font-size: 12px;">{icon} {e['sport']}</td>
+            <td style="padding: 8px 10px; font-size: 12px; color: #334155;">{e['actual_name']}</td>
+            <td style="padding: 8px 10px; font-size: 12px; color: #475569;">{e['duration_str']}</td>
+            <td style="padding: 8px 10px; font-size: 12px; color: #475569;">{dist_str}</td>
+            <td style="padding: 8px 10px; font-size: 12px; font-weight: 700; color: #2563eb;">{e['tss']}</td>
+            <td style="padding: 8px 10px; font-size: 11.5px; text-align: center;">{feel_e} {rpe_short}</td>
         </tr>
         """
 
     if not completed_rows:
         completed_rows = "<tr><td colspan='7' style='padding: 14px; text-align: center; color: #94a3b8;'>No se registraron sesiones completadas en este periodo.</td></tr>"
 
-    # 7. TABLA DE ENTRENAMIENTOS SALTADOS
+    # 8. TABLA DE ENTRENAMIENTOS SALTADOS
     skipped_rows = ""
     for s in match_data['skipped']:
         _, icon, _ = get_sport_meta(s['sport'])
@@ -632,12 +855,12 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
         </tr>
         """
 
-    # 8. RECOMENDACIONES DEL ENTRENADOR
+    # 9. RECOMENDACIONES DEL ENTRENADOR
     recs_html = ""
     for r in recommendations:
         recs_html += f"<li style='margin-bottom: 8px; font-size: 13px; line-height: 1.5; color: #1e293b;'>{r}</li>"
 
-    # 9. PRÓXIMAS CARRERAS
+    # 10. PRÓXIMAS CARRERAS
     races_html = ""
     if upcoming_races:
         for rc in upcoming_races[:2]:
@@ -676,7 +899,7 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                 <td style="padding: 20px 28px 10px 28px;">
                     <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <span style="font-size: 13px; font-weight: 700; color: #334155;">Nivel de Cumplimiento del Plan:</span>
+                            <span style="font-size: 13px; font-weight: 700; color: #334155;">Cumplimiento del Plan:</span>
                             <span style="font-size: 12px; font-weight: 700; color: {comp_color}; background-color: #ffffff; border: 1px solid {comp_color}; border-radius: 12px; padding: 2px 10px;">
                                 {comp_badge} ({comp}%)
                             </span>
@@ -685,15 +908,16 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                             <div style="background: linear-gradient(90deg, {comp_color}, #0284c7); height: 100%; width: {min(100, max(5, comp))}%; border-radius: 8px;"></div>
                         </div>
                         <div style="font-size: 11.5px; color: #64748b; margin-top: 6px; text-align: right;">
-                            {match_data['completed_count']} sesiones completadas de {match_data['total_planned']} programadas
+                            {match_data['completed_count']} sesiones completadas de {match_data['total_planned']} planificadas
                         </div>
+                        {rpe_summary_html}
                     </div>
                 </td>
             </tr>
 
             <!-- TARJETAS DE MÉTRICAS CLAVE -->
             <tr>
-                <td style="padding: 10px 28px;">
+                <td style="padding: 5px 28px 10px 28px;">
                     <table width="100%" border="0" cellpadding="0" cellspacing="0">
                         <tr>
                             <td width="23%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 8px; text-align: center;">
@@ -717,17 +941,39 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                             <td width="23%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 8px; text-align: center;">
                                 <div style="font-size: 10.5px; text-transform: uppercase; color: #64748b; font-weight: 700;">Fitness (CTL)</div>
                                 <div style="font-size: 21px; font-weight: 800; color: #0284c7; margin-top: 3px;">{wellness_data['end_ctl']}</div>
-                                <div style="font-size: 10.5px; color: #64748b; margin-top: 2px;">Δ {wellness_data['ctl_delta']:+.1f} puntos</div>
+                                <div style="font-size: 10.5px; color: #64748b; margin-top: 2px;">Δ {wellness_data['ctl_delta']:+.1f} pts</div>
                             </td>
                         </tr>
                     </table>
                 </td>
             </tr>
 
-            <!-- SESIÓN ESTRELLA -->
+            <!-- SECCIÓN ESTELAR: REVISIÓN EXHAUSTIVA DE SESIONES CLAVE Y SENSACIONES -->
             <tr>
-                <td style="padding: 10px 28px 0 28px;">
-                    {star_html}
+                <td style="padding: 10px 28px;">
+                    <div style="font-size: 14.5px; font-weight: 800; color: #0f172a; margin-bottom: 10px; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+                        🧠 Revisión Exhaustiva de Sesiones Clave y Sensaciones
+                    </div>
+                    {key_sessions_html}
+                </td>
+            </tr>
+
+            <!-- SECCIÓN: PETICIÓN ACTIVA DE FEEDBACK (LLAMADA AL DEPORTISTA) -->
+            <tr>
+                <td style="padding: 10px 28px;">
+                    <div style="background-color: #fefce8; border: 1.5px solid #fef08a; border-left: 5px solid #eab308; border-radius: 10px; padding: 16px 18px;">
+                        <div style="font-size: 14px; font-weight: 800; color: #854d0e; margin-bottom: 8px;">
+                            💬 Preguntas Clave del Entrenador (¡Dime cómo te has sentido!)
+                        </div>
+                        <ul style="margin: 0; padding-left: 18px;">
+                            {questions_html}
+                        </ul>
+                        <div style="margin-top: 12px; text-align: center;">
+                            <span style="font-size: 12px; color: #713f12; font-weight: 600;">
+                                👉 Responde a este correo o escríbeme por WhatsApp para ajustar el plan al milímetro.
+                            </span>
+                        </div>
+                    </div>
                 </td>
             </tr>
 
@@ -744,27 +990,13 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                 </td>
             </tr>
 
-            <!-- QUÉ HAS TRABAJADO (ANÁLISIS FISIOLÓGICO CLARO) -->
+            <!-- QUÉ HAS TRABAJADO -->
             <tr>
                 <td style="padding: 10px 28px;">
                     <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 8px;">
-                        🔬 ¿Qué has trabajado en este periodo? (Adaptaciones Conseguidas)
+                        🔬 Adaptaciones Fisiológicas Desarrolladas
                     </div>
                     {what_worked_html}
-                </td>
-            </tr>
-
-            <!-- PUNTOS FUERTES MEJORADOS -->
-            <tr>
-                <td style="padding: 10px 28px;">
-                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; border-radius: 10px; padding: 14px 16px;">
-                        <div style="font-size: 13.5px; font-weight: 800; color: #15803d; margin-bottom: 8px; text-transform: uppercase;">
-                            🏆 Tus Puntos Fuertes Mejorados:
-                        </div>
-                        <ul style="margin: 0; padding-left: 18px;">
-                            {strengths_html}
-                        </ul>
-                    </div>
                 </td>
             </tr>
 
@@ -772,7 +1004,7 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
             <tr>
                 <td style="padding: 15px 28px 5px 28px;">
                     <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
-                        ✅ Entrenamientos Completados ({match_data['completed_count']})
+                        📋 Registro Completo de Actividades ({match_data['completed_count']})
                     </div>
                     <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
                         <thead>
@@ -783,7 +1015,7 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                                 <th style="padding: 8px 10px;">Tiempo</th>
                                 <th style="padding: 8px 10px;">Dist.</th>
                                 <th style="padding: 8px 10px;">TSS</th>
-                                <th style="padding: 8px 10px; text-align: center;">Estado</th>
+                                <th style="padding: 8px 10px; text-align: center;">Feel / RPE</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -793,7 +1025,7 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                 </td>
             </tr>
 
-            <!-- TABLA DE ENTRENAMIENTOS SALTADOS SI LOS HAY -->
+            <!-- TABLA DE ENTRENAMIENTOS SALTADOS -->
             {f'''
             <tr>
                 <td style="padding: 15px 28px 5px 28px;">
@@ -823,7 +1055,7 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                 <td style="padding: 15px 28px;">
                     <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #2563eb; border-radius: 10px; padding: 16px;">
                         <div style="font-size: 13.5px; font-weight: 800; color: #1e40af; margin-bottom: 8px; text-transform: uppercase;">
-                            💡 Recomendaciones de tu Entrenador para el Próximo Ciclo:
+                            💡 Recomendaciones de tu Entrenador para el Próximo Microciclo:
                         </div>
                         <ul style="margin: 0; padding-left: 18px;">
                             {recs_html}
@@ -839,18 +1071,6 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
                         🎯 Próximos Retos y Competiciones:
                     </div>
                     {races_html}
-                </td>
-            </tr>
-
-            <!-- MINI GLOSARIO PEDAGÓGICO -->
-            <tr>
-                <td style="padding: 0 28px 20px 28px;">
-                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 11px; color: #64748b; line-height: 1.4;">
-                        📖 <strong>¿Qué significan mis métricas?</strong> 
-                        <strong>TSS:</strong> Carga de entrenamiento que combina volumen e intensidad. 
-                        <strong>CTL (Fitness):</strong> Tu condición física construida en los últimos 42 días. 
-                        <strong>TSB (Forma):</strong> El balance entre fatiga y frescura (entre -25 y -10 construyes; positivo estás descansado).
-                    </div>
                 </td>
             </tr>
 
@@ -870,8 +1090,5 @@ def build_report_html(athlete_name, report_type, start_date, end_date, match_dat
     return html
 
 def generate_report_recommendations(match_data, wellness_data, report_type="weekly", gemini_key=None, athlete_name="Deportista"):
-    """
-    Función de compatibilidad: redirige al nuevo motor analyze_training_insights.
-    """
     insights = analyze_training_insights(match_data, wellness_data, report_type, athlete_name)
     return insights['recommendations']
