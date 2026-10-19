@@ -126,3 +126,63 @@
 [2026-09-30 18:52:03] [DRY-RUN] Email mensual generado con éxito (59890 bytes). Volumen: 34.4h | TSS: 1558. No enviado por --dry-run.
 [2026-09-30 18:52:03] Proceso de informes finalizado.
 
+[2026-10-14 17:35:51] Iniciando proceso de informes [Modo: weekly | Dry-run: True | Entrenadores: 1]
+[2026-10-14 17:35:51] 
+==================================================
+[2026-10-14 17:35:51]  Entrenador: Juanan Coy (5 deportistas)
+[2026-10-14 17:35:51] ==================================================
+[2026-10-14 17:35:51] 
+--- Procesando: Juanan (ID: 308429) ---
+[2026-10-14 17:35:51] Generando informe semanal (2026-10-12 al 2026-10-14) para Juanan...
+[2026-10-14 17:35:53] [DRY-RUN] Email semanal generado con éxito (22208 bytes). Cumplimiento: 16.7% (1 hechos / 5 saltados). No enviado por --dry-run.
+[2026-10-14 17:35:53] 
+--- Procesando: Manule (ID: 599534) ---
+[2026-10-14 17:35:53] AVISO: Manule no tiene email configurado (simulando generación por --dry-run).
+[2026-10-14 17:35:53] Generando informe semanal (2026-10-12 al 2026-10-14) para Manule...
+[2026-10-14 17:35:54] [DRY-RUN] Email semanal generado con éxito (12726 bytes). Cumplimiento: 100.0% (0 hechos / 0 saltados). No enviado por --dry-run.
+[2026-10-14 17:35:54] 
+--- Procesando: Ruiz (ID: 602664) ---
+[2026-10-14 17:35:54] AVISO: Ruiz no tiene email configurado (simulando generación por --dry-run).
+[2026-10-14 17:35:54] Generando informe semanal (2026-10-12 al 2026-10-14) para Ruiz...
+[2026-10-14 17:35:55] [DRY-RUN] Email semanal generado con éxito (12736 bytes). Cumplimiento: 100.0% (0 hechos / 0 saltados). No enviado por --dry-run.
+[2026-10-14 17:35:55] 
+--- Procesando: Mario (ID: 634043) ---
+[2026-10-14 17:35:55] AVISO: Mario no tiene email configurado (simulando generación por --dry-run).
+[2026-10-14 17:35:55] Generando informe semanal (2026-10-12 al 2026-10-14) para Mario...
+[2026-10-14 17:35:56] [DRY-RUN] Email semanal generado con éxito (22221 bytes). Cumplimiento: 50.0% (1 hechos / 1 saltados). No enviado por --dry-run.
+[2026-10-14 17:35:56] 
+--- Procesando: Alejandra (ID: 651658) ---
+[2026-10-14 17:35:56] Generando informe semanal (2026-10-12 al 2026-10-14) para Alejandra...
+[2026-10-14 17:35:58] [DRY-RUN] Email semanal generado con éxito (25836 bytes). Cumplimiento: 16.7% (1 hechos / 5 saltados). No enviado por --dry-run.
+[2026-10-14 17:35:58] Proceso de informes finalizado.
+
+[2026-10-19 15:50:31] Iniciando proceso de informes [Modo: weekly | Dry-run: True | Entrenadores: 1]
+[2026-10-19 15:50:31] 
+==================================================
+[2026-10-19 15:50:31]  Entrenador: Juanan Coy (5 deportistas)
+[2026-10-19 15:50:31] ==================================================
+[2026-10-19 15:50:31] 
+--- Procesando: Juanan (ID: 308429) ---
+[2026-10-19 15:50:31] Generando informe semanal (2026-10-19 al 2026-10-19) para Juanan...
+[2026-10-19 15:50:32] [DRY-RUN] Email semanal generado con éxito (16144 bytes). Cumplimiento: 0.0% (0 hechos / 2 saltados). No enviado por --dry-run.
+[2026-10-19 15:50:32] 
+--- Procesando: Manule (ID: 599534) ---
+[2026-10-19 15:50:32] AVISO: Manule no tiene email configurado (simulando generación por --dry-run).
+[2026-10-19 15:50:32] Generando informe semanal (2026-10-19 al 2026-10-19) para Manule...
+[2026-10-19 15:50:33] [DRY-RUN] Email semanal generado con éxito (12271 bytes). Cumplimiento: 100.0% (0 hechos / 0 saltados). No enviado por --dry-run.
+[2026-10-19 15:50:33] 
+--- Procesando: Ruiz (ID: 602664) ---
+[2026-10-19 15:50:33] AVISO: Ruiz no tiene email configurado (simulando generación por --dry-run).
+[2026-10-19 15:50:33] Generando informe semanal (2026-10-19 al 2026-10-19) para Ruiz...
+[2026-10-19 15:50:34] [DRY-RUN] Email semanal generado con éxito (12270 bytes). Cumplimiento: 100.0% (0 hechos / 0 saltados). No enviado por --dry-run.
+[2026-10-19 15:50:34] 
+--- Procesando: Mario (ID: 634043) ---
+[2026-10-19 15:50:34] AVISO: Mario no tiene email configurado (simulando generación por --dry-run).
+[2026-10-19 15:50:34] Generando informe semanal (2026-10-19 al 2026-10-19) para Mario...
+[2026-10-19 15:50:35] [DRY-RUN] Email semanal generado con éxito (12495 bytes). Cumplimiento: 100.0% (0 hechos / 0 saltados). No enviado por --dry-run.
+[2026-10-19 15:50:35] 
+--- Procesando: Alejandra (ID: 651658) ---
+[2026-10-19 15:50:35] Generando informe semanal (2026-10-19 al 2026-10-19) para Alejandra...
+[2026-10-19 15:50:36] [DRY-RUN] Email semanal generado con éxito (16181 bytes). Cumplimiento: 0.0% (0 hechos / 2 saltados). No enviado por --dry-run.
+[2026-10-19 15:50:36] Proceso de informes finalizado.
+
