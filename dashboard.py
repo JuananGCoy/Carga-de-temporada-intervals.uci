@@ -1165,7 +1165,7 @@ def render_dashboard(active_athlete, coach_api_key, coach_athlete_id, athletes_l
             label="🔋 Sensación Promedio",
             value=f"{f_emo} {avg_feel:.1f} / 5" if avg_feel is not None else "N/D",
             delta=f_lbl if avg_feel is not None else None,
-            help="Media de sensaciones (1=Terrible a 5=Fuerte/Excelente)."
+            help="Media de sensaciones según Intervals.icu (1=Fuerte/Excelente a 5=Muy débil/Agotado)."
         )
     with col_f3:
         st.metric(

@@ -31,27 +31,27 @@ def format_sec_to_hours_mins(seconds):
 
 def format_feel(feel_val):
     """
-    Formatea las sensaciones registradas en Intervals.icu (escala 1 a 5):
-    1 = Terrible (😞 Muy mal / Agotado)
-    2 = Poor (😕 Mal / Pesado)
-    3 = Normal (😐 Normal / Asimilando)
-    4 = Good (🙂 Bien / Buenas sensaciones)
-    5 = Strong (🚀 Fuerte / Con chispa)
+    Formatea las sensaciones registradas en Intervals.icu (escala estándar Garmin FIT 1 a 5):
+    1 = Strong (🚀 Fuerte / Con chispa)
+    2 = Good (🙂 Bien / Buenas sensaciones)
+    3 = Normal (😐 Normal / Estable)
+    4 = Weak (😕 Débil / Pesado)
+    5 = Very Weak (😞 Muy débil / Agotado)
     """
     if feel_val is None:
         return ("Sin registrar", "⚪", "#94a3b8")
     try:
         val = int(feel_val)
         if val == 1:
-            return ("Terrible / Agotado", "😞", "#ef4444")
+            return ("Fuerte / Excelente", "🚀", "#059669")
         elif val == 2:
-            return ("Mal / Pesado", "😕", "#f97316")
+            return ("Bien / Buenas sensaciones", "🙂", "#10b981")
         elif val == 3:
             return ("Normal / Estable", "😐", "#eab308")
         elif val == 4:
-            return ("Bien / Buenas sensaciones", "🙂", "#10b981")
+            return ("Débil / Pesado", "😕", "#f97316")
         elif val == 5:
-            return ("Fuerte / Excelente", "🚀", "#059669")
+            return ("Muy débil / Agotado", "😞", "#ef4444")
     except Exception:
         pass
     return ("Sin registrar", "⚪", "#94a3b8")
@@ -449,29 +449,29 @@ def analyze_key_sessions(activities):
                 verdict += f"Dificultad reportada: {rpe}/10. "
             if avg_hr > 0:
                 verdict += f"Frecuencia cardíaca media de {avg_hr} ppm, manteniendo la intensidad en zona de rendimiento. "
-            if feel in [4, 5]:
+            if feel in [1, 2]:
                 verdict += "Excelente asimilación del ritmo competitivo."
-            elif feel in [1, 2]:
+            elif feel in [4, 5]:
                 verdict += "Reportaste fatiga o pesadez durante la prueba; analizaremos si faltó avituallamiento o descarga previa."
         elif is_long:
             tag = "🏃‍♂️ Tirada Larga / Volumen Clave"
             verdict = f"Pilar de resistencia aeróbica del microciclo ({dist_km} km | {format_sec_to_hours_mins(moving_time)}). "
             if rpe and int(rpe) >= 8:
                 verdict += f"Percibido como muy exigente ({rpe}/10). "
-                if feel in [1, 2]:
+                if feel in [4, 5]:
                     verdict += "La combinación de RPE alto y malas sensaciones indica fatiga residual acumulada o falta de carbohidratos intra-entreno."
                 else:
                     verdict += "Esfuerzo duro pero normal debido a la carga de kilómetros sobre las piernas."
-            elif feel in [4, 5]:
+            elif feel in [1, 2]:
                 verdict += f"Sensaciones excelentes ({feel_emoji} {feel_label}). Tu capacidad de mantener el pulso ({avg_hr} ppm) sin deriva cardíaca demuestra que el fondo aeróbico está en un gran momento."
             else:
                 verdict += f"Rodaje completado con solvencia ({tss} TSS)."
         elif is_quality:
             tag = "⚡ Sesión de Ritmo / Calidad"
             verdict = f"Trabajo de potencia y umbral. "
-            if feel == 5:
+            if feel == 1:
                 verdict += f"¡Sensaciones sobresalientes ({feel_emoji})! Terminar un entrenamiento de calidad con chispa confirma que la frescura y la activación neuromuscular están al 100%."
-            elif feel == 2 or (rpe and int(rpe) >= 8):
+            elif feel in [4, 5] or (rpe and int(rpe) >= 8):
                 verdict += f"Reportaste alta dificultad ({rpe}/10) y pesadez ({feel_label}). Las piernas llegaron cargadas; en estos días es vital no obsesionarse con el cronómetro y priorizar la técnica."
             else:
                 verdict += f"Estímulo bien digerido ({tss} TSS, FC media {avg_hr} ppm)."
@@ -516,8 +516,8 @@ def generate_coach_feedback_questions(key_sessions, wellness_data, skipped_count
     """
     questions = []
 
-    # 1. Pregunta sobre sensaciones en sesiones con RPE alto o Feel bajo
-    hard_session = next((s for s in key_sessions if (s.get('rpe') and int(s.get('rpe')) >= 8) or s.get('feel') in [1, 2]), None)
+    # 1. Pregunta sobre sensaciones en sesiones con RPE alto o Feel débil/agotado (4 o 5 en Intervals)
+    hard_session = next((s for s in key_sessions if (s.get('rpe') and int(s.get('rpe')) >= 8) or s.get('feel') in [4, 5]), None)
     if hard_session:
         date_fmt = datetime.strptime(hard_session['date'], '%Y-%m-%d').strftime('%d/%m')
         comm_note = f" (comentaste: '_{hard_session['comment']}_')" if hard_session.get('comment') else ""
